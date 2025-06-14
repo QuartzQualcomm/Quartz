@@ -113,7 +113,7 @@ def validate_uploaded_file(file: UploadFile) -> None:
         raise HTTPException(status_code=400, detail="File must be an image")
 
 
-def save_processed_image(image_array: np.ndarray, filename: str) -> str:
+def save_processed_image(image_array: np.ndarray, filename: str, *, root_path: str = "assets/public") -> str:
     """
     Save processed image array to assets/public directory.
     
@@ -124,7 +124,7 @@ def save_processed_image(image_array: np.ndarray, filename: str) -> str:
     Returns:
         Relative path to saved file
     """
-    output_dir = Path("assets/public")
+    output_dir = Path("./")
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / filename
     Image.fromarray(image_array).save(output_path)

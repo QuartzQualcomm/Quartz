@@ -12,9 +12,11 @@ from utils.image_helpers import (
     save_processed_image_png, perform_color_transfer, save_processed_image,
     create_portrait_effect
 )
-import tempfile
+from PIL import Image
 import shutil
 import subprocess
+import uuid
+import tempfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +28,34 @@ def validate_video_path(video_path: str) -> None:
         raise HTTPException(status_code=400, detail=f"Video file not found: {video_path}")
     if not os.path.isfile(video_path):
         raise HTTPException(status_code=400, detail=f"Path is not a file: {video_path}")
+
+def get_video_framerate(video_path: str) -> float:
+    """Get the framerate of the original video."""
+    try:
+        cmd = [
+            "ffprobe", "-v", "quiet", "-select_streams", "v:0", 
+            "-show_entries", "stream=r_frame_rate", "-of", "csv=p=0", video_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode == 0 and result.stdout.strip():
+            framerate_str = result.stdout.strip()
+            # Handle fractional framerates like "30000/1001"
+            if '/' in framerate_str:
+                numerator, denominator = framerate_str.split('/')
+                framerate = float(numerator) / float(denominator)
+            else:
+                framerate = float(framerate_str)
+            
+            logger.info(f"📺 Detected video framerate: {framerate} fps")
+            return framerate
+        else:
+            logger.warning("⚠️ Could not detect framerate, defaulting to 30 fps")
+            return 30.0
+            
+    except Exception as e:
+        logger.error(f"Error getting video framerate: {str(e)}")
+        return 30.0
 
 def create_temp_directory() -> str:
     """Create a temporary directory and return its path."""
@@ -45,15 +75,48 @@ def extract_frames_and_audio(video_path: str, frames_dir: str, audio_path: str) 
             logger.error(f"Failed to extract frames: {frames_result.stderr}")
             return False
         
-        # Extract audio
-        audio_cmd = [
-            "ffmpeg", "-i", video_path, "-vn", "-acodec", "aac", audio_path, "-y"
+        # Check if video has audio stream before extracting
+        check_audio_cmd = [
+            "ffprobe", "-v", "quiet", "-select_streams", "a:0", 
+            "-show_entries", "stream=codec_type", "-of", "csv=p=0", video_path
         ]
-        audio_result = subprocess.run(audio_cmd, capture_output=True, text=True)
+        audio_check_result = subprocess.run(check_audio_cmd, capture_output=True, text=True)
         
-        if audio_result.returncode != 0:
-            logger.error(f"Failed to extract audio: {audio_result.stderr}")
-            return False
+        if audio_check_result.returncode == 0 and audio_check_result.stdout.strip() == "audio":
+            # Video has audio stream, extract it
+            audio_cmd = [
+                "ffmpeg", "-i", video_path, "-vn", "-acodec", "aac", audio_path, "-y"
+            ]
+            audio_result = subprocess.run(audio_cmd, capture_output=True, text=True)
+            
+            if audio_result.returncode != 0:
+                logger.error(f"Failed to extract audio: {audio_result.stderr}")
+                return False
+        else:
+            # Video has no audio stream, create a silent audio file
+            logger.info("🔇 Video has no audio stream, creating silent audio track...")
+            # Get video duration first
+            duration_cmd = [
+                "ffprobe", "-v", "quiet", "-show_entries", "format=duration", 
+                "-of", "default=noprint_wrappers=1:nokey=1", video_path
+            ]
+            duration_result = subprocess.run(duration_cmd, capture_output=True, text=True)
+            
+            if duration_result.returncode == 0:
+                duration = float(duration_result.stdout.strip())
+                # Create silent audio
+                silent_audio_cmd = [
+                    "ffmpeg", "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=48000", 
+                    "-t", str(duration), "-c:a", "aac", audio_path, "-y"
+                ]
+                silent_result = subprocess.run(silent_audio_cmd, capture_output=True, text=True)
+                
+                if silent_result.returncode != 0:
+                    logger.error(f"Failed to create silent audio: {silent_result.stderr}")
+                    return False
+            else:
+                logger.error("Could not determine video duration")
+                return False
             
         return True
     except Exception as e:
@@ -99,6 +162,24 @@ def add_audio_to_video(video_path: str, audio_path: str, output_path: str) -> bo
         return True
     except Exception as e:
         logger.error(f"Error adding audio: {str(e)}")
+        return False
+
+def combine_frames_to_video_with_audio(frames_dir: str, audio_path: str, output_path: str, framerate: float) -> bool:
+    """Combine processed frames with audio into final video using specified framerate."""
+    try:
+        cmd = [
+            "ffmpeg", "-framerate", str(framerate), "-i", os.path.join(frames_dir, "frame_%06d.png"),
+            "-i", audio_path, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-shortest", output_path, "-y"
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            logger.error(f"Failed to combine frames with audio: {result.stderr}")
+            return False
+            
+        return True
+    except Exception as e:
+        logger.error(f"Error combining frames with audio: {str(e)}")
         return False
 
 @router.post("/api/video/video-stabilization", response_model=VideoStabilizationResponse)
@@ -212,15 +293,18 @@ async def api_video_background_removal(request: VideoRequest) -> VideoResponse:
         # Validate video path
         validate_video_path(request.video_path)
         
+        # Get original video framerate
+        original_framerate = get_video_framerate(request.video_path)
+        
         # Create temporary files
-        temp_dir = create_temp_directory()
+        temp_dir = "./tmp"
         temp_frames_dir = os.path.join(temp_dir, "frames")
         temp_processed_dir = os.path.join(temp_dir, "processed")
-        os.makedirs(temp_frames_dir)
-        os.makedirs(temp_processed_dir)
+        os.makedirs(temp_frames_dir, exist_ok=True)
+        os.makedirs(temp_processed_dir, exist_ok=True)
         
         # Extract frames and audio
-        logger.info("🔄 Step 1/4: Extracting video frames and audio...")
+        logger.info("🔄 Step 1/3: Extracting video frames and audio...")
         audio_path = os.path.join(temp_dir, "audio.aac")
         if not extract_frames_and_audio(request.video_path, temp_frames_dir, audio_path):
             logger.error("❌ Failed to extract frames and audio")
@@ -228,7 +312,7 @@ async def api_video_background_removal(request: VideoRequest) -> VideoResponse:
             raise HTTPException(status_code=400, detail="Failed to extract video frames")
             
         # Process each frame
-        logger.info("🎯 Step 2/4: Processing frames...")
+        logger.info("🎯 Step 2/3: Processing frames...")
         frame_files = sorted(os.listdir(temp_frames_dir))
         for frame_file in frame_files:
             frame_path = os.path.join(temp_frames_dir, frame_file)
@@ -237,24 +321,20 @@ async def api_video_background_removal(request: VideoRequest) -> VideoResponse:
             # Load frame and remove background
             frame = load_image_from_path(frame_path)
             processed_frame = perform_background_removal(frame)
-            save_processed_image_png(processed_frame, output_path)
             
-        # Combine processed frames into video
-        logger.info("🎬 Step 3/4: Combining processed frames...")
-        output_video = os.path.join(temp_dir, "output.mov")
-        if not combine_frames_to_video(temp_processed_dir, output_video):
-            logger.error("❌ Failed to combine frames")
-            cleanup_temp_files(temp_dir)
-            raise HTTPException(status_code=400, detail="Failed to combine frames")
+            # Save processed frame directly as PNG with transparency
+            processed_pil = Image.fromarray(processed_frame, mode='RGBA')
+            processed_pil.save(output_path, format='PNG')
             
-        # Add audio to final video
-        logger.info("🔊 Step 4/4: Adding audio...")
+        # Combine processed frames with audio
+        logger.info("🎬 Step 3/3: Combining processed frames with audio...")
+        ensure_directories_exist()
         final_output_name = generate_video_filename(request.video_path, "bg_removed")
         final_output_path = os.path.join("assets", "public", final_output_name)
-        if not add_audio_to_video(output_video, audio_path, final_output_path):
-            logger.error("❌ Failed to add audio")
+        if not combine_frames_to_video_with_audio(temp_processed_dir, audio_path, final_output_path, original_framerate):
+            logger.error("❌ Failed to combine frames with audio")
             cleanup_temp_files(temp_dir)
-            raise HTTPException(status_code=400, detail="Failed to add audio")
+            raise HTTPException(status_code=400, detail="Failed to combine frames with audio")
             
         # Clean up temporary files
         logger.info("🧹 Cleaning up temporary files...")
@@ -301,18 +381,21 @@ async def api_video_color_grading(request: ColorGradingRequest) -> VideoResponse
         validate_video_path(request.video_path)
         validate_image_path(request.reference_image_path)
         
+        # Get original video framerate
+        original_framerate = get_video_framerate(request.video_path)
+        
         # Load reference image
         reference_image = load_image_from_path(request.reference_image_path)
         
         # Create temporary files
-        temp_dir = create_temp_directory()
+        temp_dir = "./tmp"
         temp_frames_dir = os.path.join(temp_dir, "frames")
         temp_processed_dir = os.path.join(temp_dir, "processed")
-        os.makedirs(temp_frames_dir)
-        os.makedirs(temp_processed_dir)
+        os.makedirs(temp_frames_dir, exist_ok=True)
+        os.makedirs(temp_processed_dir, exist_ok=True)
         
         # Extract frames and audio
-        logger.info("🔄 Step 1/4: Extracting video frames and audio...")
+        logger.info("🔄 Step 1/3: Extracting video frames and audio...")
         audio_path = os.path.join(temp_dir, "audio.aac")
         if not extract_frames_and_audio(request.video_path, temp_frames_dir, audio_path):
             logger.error("❌ Failed to extract frames and audio")
@@ -320,7 +403,7 @@ async def api_video_color_grading(request: ColorGradingRequest) -> VideoResponse
             raise HTTPException(status_code=400, detail="Failed to extract video frames")
             
         # Process each frame
-        logger.info("🎨 Step 2/4: Applying color grading...")
+        logger.info("🎨 Step 2/3: Applying color grading...")
         frame_files = sorted(os.listdir(temp_frames_dir))
         for frame_file in frame_files:
             frame_path = os.path.join(temp_frames_dir, frame_file)
@@ -329,24 +412,17 @@ async def api_video_color_grading(request: ColorGradingRequest) -> VideoResponse
             # Load frame and apply color transfer
             frame = load_image_from_path(frame_path)
             processed_frame = perform_color_transfer(reference_image, frame)
-            save_processed_image(processed_frame, output_path)
+            save_processed_image(processed_frame, output_path, root_path="./")
             
-        # Combine processed frames into video
-        logger.info("🎬 Step 3/4: Combining processed frames...")
-        output_video = os.path.join(temp_dir, "output.mov")
-        if not combine_frames_to_video(temp_processed_dir, output_video):
-            logger.error("❌ Failed to combine frames")
-            cleanup_temp_files(temp_dir)
-            raise HTTPException(status_code=400, detail="Failed to combine frames")
-            
-        # Add audio to final video
-        logger.info("🔊 Step 4/4: Adding audio...")
+        # Combine processed frames with audio
+        logger.info("🎬 Step 3/3: Combining processed frames with audio...")
+        ensure_directories_exist()
         final_output_name = generate_video_filename(request.video_path, "color_graded")
         final_output_path = os.path.join("assets", "public", final_output_name)
-        if not add_audio_to_video(output_video, audio_path, final_output_path):
-            logger.error("❌ Failed to add audio")
+        if not combine_frames_to_video_with_audio(temp_processed_dir, audio_path, final_output_path, original_framerate):
+            logger.error("❌ Failed to combine frames with audio")
             cleanup_temp_files(temp_dir)
-            raise HTTPException(status_code=400, detail="Failed to add audio")
+            raise HTTPException(status_code=400, detail="Failed to combine frames with audio")
             
         # Clean up temporary files
         logger.info("🧹 Cleaning up temporary files...")
@@ -392,15 +468,18 @@ async def api_video_portrait_effect(request: VideoRequest) -> VideoResponse:
         # Validate video path
         validate_video_path(request.video_path)
         
+        # Get original video framerate
+        original_framerate = get_video_framerate(request.video_path)
+        
         # Create temporary files
-        temp_dir = create_temp_directory()
+        temp_dir = "./tmp"
         temp_frames_dir = os.path.join(temp_dir, "frames")
         temp_processed_dir = os.path.join(temp_dir, "processed")
-        os.makedirs(temp_frames_dir)
-        os.makedirs(temp_processed_dir)
+        os.makedirs(temp_frames_dir, exist_ok=True)
+        os.makedirs(temp_processed_dir, exist_ok=True)
         
         # Extract frames and audio
-        logger.info("🔄 Step 1/4: Extracting video frames and audio...")
+        logger.info("🔄 Step 1/3: Extracting video frames and audio...")
         audio_path = os.path.join(temp_dir, "audio.aac")
         if not extract_frames_and_audio(request.video_path, temp_frames_dir, audio_path):
             logger.error("❌ Failed to extract frames and audio")
@@ -408,7 +487,7 @@ async def api_video_portrait_effect(request: VideoRequest) -> VideoResponse:
             raise HTTPException(status_code=400, detail="Failed to extract video frames")
             
         # Process each frame
-        logger.info("🎯 Step 2/4: Applying portrait effect...")
+        logger.info("🎯 Step 2/3: Applying portrait effect...")
         frame_files = sorted(os.listdir(temp_frames_dir))
         for frame_file in frame_files:
             frame_path = os.path.join(temp_frames_dir, frame_file)
@@ -419,22 +498,15 @@ async def api_video_portrait_effect(request: VideoRequest) -> VideoResponse:
             processed_frame = create_portrait_effect(frame)
             save_processed_image(processed_frame, output_path)
             
-        # Combine processed frames into video
-        logger.info("🎬 Step 3/4: Combining processed frames...")
-        output_video = os.path.join(temp_dir, "output.mov")
-        if not combine_frames_to_video(temp_processed_dir, output_video):
-            logger.error("❌ Failed to combine frames")
-            cleanup_temp_files(temp_dir)
-            raise HTTPException(status_code=400, detail="Failed to combine frames")
-            
-        # Add audio to final video
-        logger.info("🔊 Step 4/4: Adding audio...")
+        # Combine processed frames with audio
+        logger.info("🎬 Step 3/3: Combining processed frames with audio...")
+        ensure_directories_exist()
         final_output_name = generate_video_filename(request.video_path, "portrait_effect")
         final_output_path = os.path.join("assets", "public", final_output_name)
-        if not add_audio_to_video(output_video, audio_path, final_output_path):
-            logger.error("❌ Failed to add audio")
+        if not combine_frames_to_video_with_audio(temp_processed_dir, audio_path, final_output_path, original_framerate):
+            logger.error("❌ Failed to combine frames with audio")
             cleanup_temp_files(temp_dir)
-            raise HTTPException(status_code=400, detail="Failed to add audio")
+            raise HTTPException(status_code=400, detail="Failed to combine frames with audio")
             
         # Clean up temporary files
         logger.info("🧹 Cleaning up temporary files...")
