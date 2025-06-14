@@ -1,6 +1,6 @@
 import logging
 import os
-from fastapi import HTTPException
+from fastapi import HTTPException, APIRouter
 from main import router
 from data_models import VideoStabilizationRequest, VideoStabilizationResponse, VideoRequest, VideoResponse, ColorGradingRequest
 from utils.video_helpers import (
@@ -15,6 +15,8 @@ from utils.image_helpers import (
 import tempfile
 import shutil
 import subprocess
+
+router = APIRouter()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -109,39 +111,39 @@ def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabiliz
     Args:
         request: VideoStabilizationRequest containing video path and timestamps
     Returns:
-        VideoStabilizationResponse with download link and absolute path
+        JSON object with success status and either data or error message
     Raises:
         HTTPException: If video processing fails at any step
     """
-    logger.info("🎬 Starting video stabilization API call")
-    logger.info(f"📁 Input video path: {request.video_path}")
-    logger.info(f"⏱️  Time range: {request.time_stamp[0]}s - {request.time_stamp[1]}s")
-    
-    logger.info("📂 Ensuring directories exist...")
-    ensure_directories_exist()
-    
-    # Generate unique filenames for processing steps
-    temp_clip_name = generate_unique_filename("mp4")
-    temp_mov_name = generate_unique_filename("mov") 
-    final_output_name = generate_unique_filename("mov")
-    
-    # Define file paths for processing pipeline
-    temp_clip_path = f"tmp/{temp_clip_name}"
-    temp_mov_path = f"tmp/{temp_mov_name}"
-    final_output_path = f"assets/public/{final_output_name}"
-    
-    logger.info(f"🔄 Generated processing pipeline:")
-    logger.info(f"   • Temp clip: {temp_clip_path}")
-    logger.info(f"   • Temp MOV: {temp_mov_path}")
-    logger.info(f"   • Final output: {final_output_path}")
-    
     try:
+        logger.info("🎬 Starting video stabilization API call")
+        logger.info(f"📁 Input video path: {request.video_path}")
+        logger.info(f"⏱️  Time range: {request.time_stamp[0]}s - {request.time_stamp[1]}s")
+        
+        logger.info("📂 Ensuring directories exist...")
+        ensure_directories_exist()
+        
+        # Generate unique filenames for processing steps
+        temp_clip_name = generate_unique_filename("mp4")
+        temp_mov_name = generate_unique_filename("mov") 
+        final_output_name = generate_unique_filename("mov")
+        
+        # Define file paths for processing pipeline
+        temp_clip_path = f"tmp/{temp_clip_name}"
+        temp_mov_path = f"tmp/{temp_mov_name}"
+        final_output_path = f"assets/public/{final_output_name}"
+        
+        logger.info(f"🔄 Generated processing pipeline:")
+        logger.info(f"   • Temp clip: {temp_clip_path}")
+        logger.info(f"   • Temp MOV: {temp_mov_path}")
+        logger.info(f"   • Final output: {final_output_path}")
+        
         # Extract video segment from specified time range
         logger.info("✂️  Step 1/3: Extracting video clip...")
         if not extract_video_clip(request.video_path, request.time_stamp[0], 
                                  request.time_stamp[1], temp_clip_path):
             logger.error("❌ Failed to extract video clip")
-            raise HTTPException(status_code=400, detail="Failed to extract video clip")
+            raise Exception("Failed to extract video clip")
         logger.info("✅ Video clip extraction completed successfully")
         
         # Convert extracted clip to MOV format
@@ -149,7 +151,7 @@ def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabiliz
         if not convert_to_mov(temp_clip_path, temp_mov_path):
             logger.error("❌ Failed to convert video format")
             cleanup_temp_files(temp_clip_path)
-            raise HTTPException(status_code=400, detail="Failed to convert video format")
+            raise Exception("Failed to convert video format")
         logger.info("✅ Video format conversion completed successfully")
         
         # Apply video stabilization using VidStab
@@ -157,7 +159,7 @@ def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabiliz
         if not stabilize_video(temp_mov_path, final_output_path):
             logger.error("❌ Failed to stabilize video")
             cleanup_temp_files(temp_clip_path, temp_mov_path)
-            raise HTTPException(status_code=400, detail="Failed to stabilize video")
+            raise Exception("Failed to stabilize video")
         logger.info("✅ Video stabilization completed successfully")
         
         # Clean up temporary files after successful processing
@@ -173,21 +175,18 @@ def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabiliz
         logger.info(f"📥 Download link: {download_link}")
         logger.info(f"📍 Absolute path: {absolute_path}")
         
-        return VideoStabilizationResponse(
+        response_data = VideoStabilizationResponse(
             link=download_link,
             absolute_path=absolute_path
         )
+        return {"success": True, "data": response_data}
         
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        logger.error("❌ HTTP exception occurred during video processing")
-        raise
     except Exception as e:
         # Clean up any remaining temporary files on unexpected error
         logger.error(f"💥 Unexpected error during video processing: {str(e)}")
         logger.info("🧹 Attempting cleanup of temporary files...")
-        cleanup_temp_files(temp_clip_path, temp_mov_path)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        cleanup_temp_files(temp_clip_path, temp_mov_path, final_output_path)
+        return {"success": False, "error": f"Internal server error: {str(e)}"}
 
 
 @router.post("/api/video/remove-bg")
