@@ -5,7 +5,7 @@ from main import router
 from data_models import VideoStabilizationRequest, VideoStabilizationResponse, VideoRequest, VideoResponse, ColorGradingRequest
 from utils.video_helpers import (
     generate_unique_filename, extract_video_clip, convert_to_mov,
-    stabilize_video_ffmpeg, ensure_directories_exist, get_absolute_path, cleanup_temp_files,
+    stabilize_video, ensure_directories_exist, get_absolute_path, cleanup_temp_files,
     convert_video_to_24fps
 )
 from utils.image_helpers import (
@@ -159,7 +159,7 @@ def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabiliz
         
         # Apply video stabilization using VidStab
         logger.info("🎯 Step 3/4: Applying video stabilization...")
-        if not stabilize_video_ffmpeg(temp_mov_path, final_output_path):
+        if not stabilize_video(temp_mov_path, final_output_path):
             logger.error("❌ Failed to stabilize video")
             cleanup_temp_files(fps_video_path, temp_mov_path)
             raise Exception("Failed to stabilize video")

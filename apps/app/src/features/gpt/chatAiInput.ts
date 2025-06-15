@@ -149,6 +149,10 @@ export class ChatAiInput extends LitElement {
   }
 
   handleEnter(event) {
+
+    const aiInput = document.querySelector("ai-input");
+    return aiInput.handleEnter(event);
+
     if (event.key === "Enter" && !this.isEnter) {
       this.isEnter = true;
       event.preventDefault();
@@ -181,7 +185,7 @@ export class ChatAiInput extends LitElement {
           files: AssetList.fileList || [],
           current_directory: AssetList.nowDirectory
         };
-        this.panelOpen();
+        // this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
         chatLLMState.addList({
           from: "user",
@@ -196,6 +200,15 @@ export class ChatAiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+
+                const chatLLMState = chatLLMStore.getState();
+                chatLLMState.addList({
+                  from: "agent",
+                  text: response.text,
+                  timestamp: new Date().toISOString(),
+                });
+                console.log("updated llmstate", chatLLMState.list);
+
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);
                 } else if (response.tool_name == "add_slide") {

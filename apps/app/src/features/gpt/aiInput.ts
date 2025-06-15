@@ -194,11 +194,19 @@ export class AiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+                
+                const chatLLMState = chatLLMStore.getState();
                 chatLLMState.addList({
-                  from: "system",
+                  from: "agent",
                   text: response.text,
                   timestamp: new Date().toISOString(),
                 });
+                console.log("updated llmstate", chatLLMState.list);
+                // const chatLLMSidebar = 
+                // this.uiState= uiStore.getState();
+                // this.uiState.setThinking();
+                console.log(response);
+
                 
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);

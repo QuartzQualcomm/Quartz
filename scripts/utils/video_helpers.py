@@ -4,8 +4,10 @@ import uuid
 import logging
 import cv2
 import numpy as np
+from vidstab import VidStab
 from typing import Tuple
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 from rich.console import Console
@@ -133,9 +135,9 @@ def convert_to_mov(input_path: str, output_path: str) -> bool:
         return False
 
 
-def stabilize_video_ffmpeg(input_path: str, output_path: str) -> bool:
+def stabilize_video(input_path: str, output_path: str) -> bool:
     """
-    Stabilize video using FFmpeg's vidstabdetect and vidstabtransform filters.
+    Stabilize video using VidStab library with ORB keypoint detection.
     
     Args:
         input_path: Path to input video file
@@ -143,52 +145,201 @@ def stabilize_video_ffmpeg(input_path: str, output_path: str) -> bool:
     Returns:
         Boolean indicating success/failure
     """
-    console.print(f"[bold magenta]🎯 Stabilizing video with FFmpeg: {Path(input_path).name}[/bold magenta]")
+    console.print(f"[bold magenta]🎯 Stabilizing video: {Path(input_path).name}[/bold magenta]")
+    console.print(f"[cyan]🔍 Method: ORB keypoint detection with inpainting[/cyan]")
     
     try:
-        # Step 1: Detect motion vectors
-        transforms_path = "transforms.trf"
-        detect_cmd = [
-            "ffmpeg", "-i", input_path, "-vf", "vidstabdetect=stepsize=6:shakiness=5:accuracy=15:result=" + transforms_path,
-            "-f", "null", "-"
-        ]
-        console.print("[cyan]🔍 Pass 1/2: Detecting motion vectors...[/cyan]")
-        console.print(f"[dim]🔧 Running: {' '.join(detect_cmd)}[/dim]")
+        # Ensure tmp directory exists for frame storage
+        temp_frames_dir = "tmp/frames"
+        temp_mask_dir = "tmp/mask"
+        os.makedirs(temp_frames_dir, exist_ok=True)
+        os.makedirs(temp_mask_dir, exist_ok=True)
         
-        detect_process = subprocess.Popen(detect_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        detect_stdout, detect_stderr = detect_process.communicate()
-
-        if detect_process.returncode != 0:
-            console.print(f"[bold red]❌ FFmpeg motion detection failed.[/bold red]")
-            console.print(f"[dim]{detect_stderr}[/dim]")
-            return False
-
-        # Step 2: Apply stabilization transform
-        transform_cmd = [
-            "ffmpeg", "-i", input_path, "-vf", "vidstabtransform=input=" + transforms_path + ":zoom=0:smoothing=10",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "copy", "-y", output_path
-        ]
-        console.print("[cyan]🔄 Pass 2/2: Applying stabilization transform...[/cyan]")
-        console.print(f"[dim]🔧 Running: {' '.join(transform_cmd)}[/dim]")
-
-        transform_process = subprocess.Popen(transform_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        transform_stdout, transform_stderr = transform_process.communicate()
+        # Initialize VidStab with ORB keypoint detection
+        smoothing_window = 30
+        stabilizer = VidStab(kp_method='ORB')
         
-        if transform_process.returncode != 0:
-            console.print(f"[bold red]❌ FFmpeg stabilization failed.[/bold red]")
-            console.print(f"[dim]{transform_stderr}[/dim]")
-            return False
+        # Get video properties for output
+        vidcap = cv2.VideoCapture(input_path)
+        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        console.print(f"[cyan]📹 Video info: {total_frames} frames at {fps} FPS[/cyan]")
+        
+        # Initialize video capture for frame-by-frame processing
+        vidcap = cv2.VideoCapture(input_path)
+        frame_count = 0
+        saved_frame_count = 0
+        
+        frame_size = None
+        while True:
+            grabbed_frame, frame = vidcap.read()
+            if frame_size is None and frame is not None:
+                frame_size = frame.shape[:2]
             
-        console.print(f"[bold green]✅ Video stabilized successfully: {Path(output_path).name}[/bold green]")
-        return True
+            if frame is not None:
+                # Perform any pre-processing of frame before stabilization here
+                pass
+            
+            # Pass frame to stabilizer even if frame is None
+            # stabilized_frame will be an all black frame until iteration smoothing_window
+            stabilized_frame = stabilizer.stabilize_frame(input_frame=frame,
+                                                        smoothing_window=smoothing_window)
+            
+            if stabilized_frame is None:
+                # There are no more frames available to stabilize
+                break
+            
+            mask = np.ones(frame_size, dtype=np.uint8) * 255
+            if frame_count >= smoothing_window and stabilizer.transforms is not None:
+                # The stabilized frame we just got corresponds to a transform from earlier
+                # due to the smoothing window delay
+                transform_index = frame_count - smoothing_window
+                if transform_index < len(stabilizer.transforms):
+                    transform = stabilizer.transforms[transform_index]
+                    dx, dy, da = transform
+                    da = -da
+                    
+                    # Apply the same transformation to the mask
+                    # Create transformation matrix for translation and rotation
+                    center = (frame_size[1] // 2, frame_size[0] // 2)  # (width//2, height//2)
+                    rotation_matrix = cv2.getRotationMatrix2D(center, np.degrees(da), 1.0)
+                    
+                    # Add translation to the transformation matrix
+                    rotation_matrix[0, 2] += dx
+                    rotation_matrix[1, 2] += dy
+                    
+                    # Apply transformation to mask
+                    transformed_mask = cv2.warpAffine(mask, rotation_matrix, (frame_size[1], frame_size[0]), 
+                                                    flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT, 
+                                                    borderValue=0)
+                    
+                    # Clip to initial image size (mask is already the right size)
+                    h, w = frame_size
+                    transformed_mask = transformed_mask[:h, :w]
+                    
+                    # Create inversion mask for inpainting (black areas need to be filled)
+                    inpaint_mask = 255 - transformed_mask
+                    
+                    # Save masks with zero-padded numbering
+                    transformed_mask_filename = f"{temp_mask_dir}/transformed_mask_{saved_frame_count:06d}.png"
+                    inpaint_mask_filename = f"{temp_mask_dir}/inpaint_mask_{saved_frame_count:06d}.png"
+                    cv2.imwrite(transformed_mask_filename, transformed_mask)
+                    cv2.imwrite(inpaint_mask_filename, inpaint_mask)
+                    
+                    # Perform inpainting on the stabilized frame
+                    inpainted_frame = cv2.inpaint(stabilized_frame, inpaint_mask, 3, cv2.INPAINT_TELEA)
+                    
+                    # Save inpainted frame with zero-padded numbering
+                    frame_filename = f"{temp_frames_dir}/frame_{saved_frame_count:06d}.png"
+                    cv2.imwrite(frame_filename, inpainted_frame)
+                    saved_frame_count += 1
+                    
+                    if saved_frame_count % 30 == 0:  # Progress update every 30 frames
+                        console.print(f"[cyan]📸 Processed {saved_frame_count} frames[/cyan]")
 
+            frame_count += 1
+
+        # Clean up video capture
+        vidcap.release()
+        
+        console.print(f"[green]✅ Generated {saved_frame_count} inpainted frames and masks[/green]")
+        
+        # Convert frames back to video using FFmpeg
+        if saved_frame_count > 0:
+            console.print(f"[cyan]🎬 Converting {saved_frame_count} frames to video...[/cyan]")
+            
+            # Create temp output with .avi extension first
+            temp_output = output_path.replace('.mov', '_temp.avi')
+            
+            cmd = [
+                "ffmpeg", "-framerate", str(fps), "-i", f"{temp_frames_dir}/frame_%06d.png",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p",
+                "-y", temp_output
+            ]
+            console.print(f"[dim]🔧 Running: {' '.join(cmd)}[/dim]")
+            
+            # Stream FFmpeg output
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                                     universal_newlines=True, bufsize=1)
+            
+            with console.status("[bold blue]Creating video from frames..."):
+                for line in process.stdout:
+                    if line.strip():
+                        logger.debug(f"[dim]📺 {line.strip()}[/dim]")
+            
+            process.wait()
+            
+            if process.returncode == 0:
+                console.print("[green]✅ Successfully created video from frames[/green]")
+                
+                # If output should be MOV, convert using FFmpeg
+                if output_path.endswith('.mov') and temp_output != output_path:
+                    console.print(f"[cyan]🔄 Converting to MOV format...[/cyan]")
+                    
+                    cmd = [
+                        "ffmpeg", "-i", temp_output, "-c:v", "libx264",
+                        "-preset", "medium", "-crf", "23", "-c:a", "aac", "-y", output_path
+                    ]
+                    console.print(f"[dim]🔧 Running: {' '.join(cmd)}[/dim]")
+                    
+                    # Stream FFmpeg output
+                    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                                             universal_newlines=True, bufsize=1)
+                    
+                    with console.status("[bold blue]Converting to MOV format..."):
+                        for line in process.stdout:
+                            if line.strip():
+                                logger.debug(f"[dim]📺 {line.strip()}[/dim]")
+                    
+                    process.wait()
+                    
+                    if process.returncode == 0:
+                        # Remove temp file and keep final output
+                        os.remove(temp_output)
+                        console.print("[green]✅ Successfully converted to MOV format[/green]")
+                    else:
+                        console.print(f"[yellow]⚠️  MOV conversion failed, keeping AVI format[/yellow]")
+                        # Rename temp file to final output if conversion fails
+                        os.rename(temp_output, output_path.replace('.mov', '.avi'))
+                
+                # Clean up temporary frame files
+                console.print("[cyan]🧹 Cleaning up temporary frames...[/cyan]")
+                for i in range(saved_frame_count):
+                    frame_file = f"{temp_frames_dir}/frame_{i:06d}.png"
+                    if os.path.exists(frame_file):
+                        os.remove(frame_file)
+                
+                # Clean up temporary mask files
+                console.print("[cyan]🧹 Cleaning up temporary masks...[/cyan]")
+                for i in range(saved_frame_count):
+                    transformed_mask_file = f"{temp_mask_dir}/transformed_mask_{i:06d}.png"
+                    inpaint_mask_file = f"{temp_mask_dir}/inpaint_mask_{i:06d}.png"
+                    if os.path.exists(transformed_mask_file):
+                        os.remove(transformed_mask_file)
+                    if os.path.exists(inpaint_mask_file):
+                        os.remove(inpaint_mask_file)
+                
+                # Remove temp directories if empty
+                try:
+                    os.rmdir(temp_frames_dir)
+                    os.rmdir(temp_mask_dir)
+                except OSError:
+                    pass  # Directory not empty or doesn't exist
+                
+                console.print(f"[bold green]✅ Video stabilized successfully: {Path(output_path).name}[/bold green]")
+                return True
+            else:
+                console.print(f"[bold red]❌ FFmpeg frame-to-video conversion failed with return code {process.returncode}[/bold red]")
+                return False
+        else:
+            console.print("[bold red]❌ No frames were generated for stabilization[/bold red]")
+            return False
+        
     except Exception as e:
-        console.print(f"[bold red]💥 Unexpected error during FFmpeg stabilization: {str(e)}[/bold red]")
+        console.print(f"[bold red]❌ Video stabilization failed: {str(e)}[/bold red]")
+        console.print("[yellow]💡 Check if input file exists and is a valid video format[/yellow]")
         return False
-    finally:
-        # Clean up the transforms file
-        if os.path.exists("transforms.trf"):
-            os.remove("transforms.trf")
 
 
 def ensure_directories_exist() -> None:

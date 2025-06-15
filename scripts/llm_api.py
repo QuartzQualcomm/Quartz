@@ -115,7 +115,7 @@ def call_llm(messages, temperature=0.0):
     }
 
     response = requests.post(
-        "http://localhost:49728/api/v1/openai/chat/completions",
+        "http://localhost:53052/api/v1/openai/chat/completions",
         json=request_body,
         headers=headers,
     )
