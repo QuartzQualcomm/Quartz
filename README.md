@@ -1,4 +1,5 @@
 # Quartz
+![Quartz Banner](./banner.png)
 
 An AI-enabled powerful video editor that lets you edit videos without any expertise. It uses LLMs and ML models compiled and deployed on Edge devices (Snapdragon X platforms) along with a hierarchical completion strategy that maximizes performance and speed. Even with small LLMs (8B parameters), we are able to demonstrate a use-case that can be deployed for much more complex use-cases. We use Whisper and other ML models optimized for NPU performance using ONNXRuntime-QNN.
 
@@ -18,7 +19,7 @@ We are using the following models. They are deployed on either NPU/CPU (based on
 - Llama 3.1 8B (AnythingLLM) - For chat completions.
 - Whisper Base (NPU for Speech-to-Text, CPU for time-stamped transcriptions) - For speech to text and transcriptions (.srt)
 - Large Mask (LaMa) Inpainting (For Video Stabilization)
-- ESRGAN (NPU) - For increasing quality of image/video
+- ESRGAN (NPU) - For increasing quality of image
 - MiDAS (NPU) - Depth Estimation for Background Blurring 
 - ViT (CPU) - Image Classification for image metadata  
 ## Features
