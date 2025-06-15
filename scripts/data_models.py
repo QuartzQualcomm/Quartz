@@ -1,17 +1,4 @@
 from pydantic import BaseModel
-from typing import List
-
-
-class VideoStabilizationRequest(BaseModel):
-    """
-    Request model for video stabilization endpoint.
-    
-    Attributes:
-        video_path: Absolute path to the input video file
-        time_stamp: List containing start and end timestamps in seconds [start, end]
-    """
-    video_path: str
-    time_stamp: List[float]
 
 
 class VideoStabilizationResponse(BaseModel):

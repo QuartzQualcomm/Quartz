@@ -481,7 +481,7 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
     
     Args:
         img: Input image as PIL Image or numpy array
-        mask: Binary mask (0 for areas to inpaint, 1 for areas to preserve)
+        mask: Mask where 0 indicates areas to inpaint, all non-zero values indicate areas to preserve
         
     Returns:
         Inpainted image as numpy array
@@ -513,8 +513,12 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
         original_size = pil_img.size
         resized_img = pil_img.resize((512, 512), Image.Resampling.LANCZOS)
         
+        # Convert mask: 0 for areas to inpaint, any non-zero for areas to preserve
+        # First convert to binary: 0 stays 0, any non-zero becomes 1
+        binary_mask = (mask != 0).astype(np.uint8)
+        
         # Resize mask to match
-        resized_mask = cv2.resize(mask.astype(np.uint8), (512, 512), interpolation=cv2.INTER_NEAREST)
+        resized_mask = cv2.resize(binary_mask, (512, 512), interpolation=cv2.INTER_NEAREST)
         
         # Convert mask: LaMa expects 0 for areas to keep, 1 for areas to inpaint
         # Our input mask is 0 for areas to inpaint, 1 for areas to preserve
