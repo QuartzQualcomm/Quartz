@@ -13,6 +13,7 @@ import {
   addSlideElement,
   addElement,
   exportVideo,
+  addAutoCaption
 } from "../../../reponseHandlers";
 import { addElementAbs } from "../../../reponseHandlers/element_handlers";
 
@@ -229,7 +230,19 @@ export class AiInput extends LitElement {
                 } else if (response.tool_name == "color_grading") {
                   console.log(response.params);
                   renderNewImage(response.params.absolute_path);
-                } else if (response.tool_name == "file_classify") {
+                }else if (response.tool_name == "denoise") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path);
+                } 
+                else if (response.tool_name == "auto_caption") {
+                  console.log(response.params);
+                  addAutoCaption(response.params.absolute_path);
+                }  
+                else if (response.tool_name == "text_to_speech") {
+                  console.log(response.params);
+                  addElement(response.params);
+                }  
+                else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);
                   // simply adds top result to the timeline
                   const myResult = {

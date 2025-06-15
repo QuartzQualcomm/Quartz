@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class VideoStabilizationRequest(BaseModel):
@@ -149,3 +149,32 @@ class AudioTranscriptionResponse(BaseModel):
     content: str
     language: str
     duration: float
+
+
+# Text-to-speech models
+class TextToSpeechRequest(BaseModel):
+    """
+    Request model for text-to-speech endpoint.
+
+    Attributes:
+        text: Text to convert to speech
+        voice_preset: Voice preset identifier (optional)
+    """
+    text: str
+    voice_preset: Optional[str] = "v2/en_speaker_6"
+
+
+class TextToSpeechResponse(BaseModel):
+    """
+    Response model for text-to-speech endpoint.
+
+    Attributes:
+        link: URL path to access the generated audio file
+        absolute_path: Absolute file system path to the generated file
+        text: Original input text
+        voice_preset: Voice preset used
+    """
+    link: str
+    absolute_path: str
+    text: str
+    voice_preset: str
