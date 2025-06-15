@@ -154,7 +154,7 @@ export class App extends LitElement {
             ></timeline-ui>
           </div>
 
-          <chat-sidebar width="${this.resize.chatSidebar}px"></chat-sidebar>
+          <chat-sidebar width="150px"></chat-sidebar>
         </div>
 
         <offcanvas-list-ui></offcanvas-list-ui>

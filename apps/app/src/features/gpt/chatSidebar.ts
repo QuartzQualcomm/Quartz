@@ -3,7 +3,8 @@ import { customElement, property } from "lit/decorators.js";
 import { ITimelineStore, useTimelineStore } from "../../states/timelineStore";
 import { IChatLLMPanelStore, chatLLMStore } from "../../states/chatLLM";
 import { IUIStore, uiStore } from "../../states/uiStore";
-import "./aiInput";
+// import "./aiInput"; // Removed as it's no longer directly used in chatSidebar
+import "./chatAiInput"; // Import the new chat AI input component
 
 @customElement("chat-sidebar")
 export class ChatSidebar extends LitElement {
@@ -21,7 +22,7 @@ export class ChatSidebar extends LitElement {
   chatList = this.chatLLMState.list;
 
   @property()
-  width;
+  width = uiStore.getInitialState().resize.chatSidebar;
 
   thinking;
 
@@ -37,11 +38,29 @@ export class ChatSidebar extends LitElement {
       this.requestUpdate();
     });
 
+    uiStore.subscribe((state) => {
+      this.width = state.resize.chatSidebar;
+      this.thinking = state.thinking;
+      this.requestUpdate();
+    });
+
     return this;
   }
 
   panelClose() {
-    this.uiState.setChatSidebar(10);
+    this.uiState.setChatSidebar(0);
+  }
+
+  clearChat() {
+    chatLLMStore.setState({
+      list: [
+        {
+          from: "agent",
+          text: "Hello, I'm Quartz! I'm your personal local AI video editor powered by Qualcomm Snapdragon X. Start by giving me commands!",
+          timestamp: new Date().toISOString(),
+        }
+      ]
+    });
   }
 
   render() {
@@ -51,18 +70,16 @@ export class ChatSidebar extends LitElement {
       const element = this.chatList[index];
 
       if (element.from == "user") {
-        lists.push(html` <div class="d-flex justify-content-end w-100">
-          <span
-            style="background-color: #3B3B40; color: #DCDCDC; border-radius: 8px; padding: 10px 15px; box-shadow: none; max-width: 75%; text-align: left; white-space: normal; display: inline-block;"
-            >${element.text}</span
-          >
+        lists.push(html` <div class="message-container">
+          <div class="message-header">
+            <span class="material-symbols-outlined user-icon">account_circle</span>
+            <span class="message-label">You</span>
+          </div>
+          <div class="message-content user-message">${element.text}</div>
         </div>`);
       } else if (element.from == "agent") {
-        lists.push(html` <div class="d-flex justify-content-start w-100">
-          <span
-            style="background-color: #2C2C30; color: #DCDCDC; border-radius: 8px; padding: 10px 15px; box-shadow: none; max-width: 75%; text-align: left; white-space: normal; display: inline-block;"
-            >${element.text}</span
-          >
+        lists.push(html` <div class="message-container">
+          <div class="message-content assistant-message">${element.text}</div>
         </div>`);
       }
     }
@@ -71,55 +88,154 @@ export class ChatSidebar extends LitElement {
       <style>
         .chat-top {
           border-bottom: 0.05rem #3a3f44 solid;
-          height: 35px;
+          height: 40px;
           display: flex;
           align-items: center;
-          justify-content: start;
-          padding-left: 0.5rem;
+          justify-content: space-between;
+          padding: 0 1rem;
         }
         .chat-sidebar-container {
-          min-width: ${this.width};
-          width: ${this.width};
+          min-width: ${this.width}px;
+          width: ${this.width}px;
           z-index: 998;
           left: 0.75rem;
           position: relative;
-          overflow-y: auto; /* Changed from scroll to auto for better scroll behavior */
-          padding-bottom: 5rem; /* Ensure space for sticky input */
-          display: flex; /* Added for flex layout */
-          flex-direction: column; /* Stack children vertically */
-          justify-content: space-between; /* Push input to bottom */
+          overflow-y: auto;
+          padding-bottom: 5rem;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          font-size: 0.9rem;
         }
         .chat-box-container {
-          flex-grow: 1; /* Allow this to take available space */
-          overflow-y: auto; /* Scroll only this part if content overflows */
+          flex-grow: 1;
+          overflow-y: auto;
+          padding: 1.5rem;
+          margin-bottom: 6rem;
         }
         .sticky-input {
           position: sticky;
-          bottom: 0;
-          background-color: var(--bs-darker); /* Match theme */
-          padding: 0.5rem 0; /* Add some padding */
-          border-top: 0.05rem #3a3f44 solid; /* Optional: add a top border */
+          bottom: 10;
+          background-color: var(--bs-darker);
+          padding: 0.75rem 1.3rem 2.2rem 0.5rem;
+          border-top: none;
+          align-items: center;
+          justify-content: center;
+          right:100;
+        }
+        .input-wrapper {
+          flex-grow: 1;
+          display: flex;
+          align-items: center;
+          gap: 0.2rem;
+          border-radius: 8px;
+          background-color: #2C2C30;
+          padding: 0.5rem 0.5rem;
+          font-size: 0.85rem;
+          box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+          border: 1px solid #3a3f44;
+        }
+        .chat-input {
+          flex-grow: 1;
+          background-color: transparent;
+          border: none;
+          padding: 0;
+          font-size: 0.85rem;
+        }
+        .message-container {
+          margin-bottom: 1rem;
+          padding: 0.45rem 0;
+        }
+        .message-header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+        }
+        .user-icon {
+          color: #4A9EFF;
+          font-size: 1.4rem;
+        }
+        .message-label {
+          color: #888;
+          font-size: 0.9rem;
+        }
+        .message-content {
+          color: #DCDCDC;
+          line-height: 1.6;
+          white-space: pre-wrap;
+          font-size: 0.95rem;
+          padding: 0 0.5rem;
+        }
+        .user-message {
+          color: #FFFFFF;
+        }
+        .assistant-message {
+          color: #DCDCDC;
+        }
+        .new-chat-btn {
+          background: transparent;
+          border: none;
+          color: #DCDCDC;
+          padding: 0.25rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s ease;
+        }
+        .new-chat-btn:hover {
+          color: #4A9EFF;
+        }
+        .top-controls {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          width: 100%;
+        }
+        .close-icon {
+          color: #888;
+          font-size: 1.1rem;
+          cursor: pointer;
+          padding: 0.25rem;
+        }
+        .close-icon:hover {
+          color: #DCDCDC;
+        }
+        .send-button {
+          background: transparent;
+          border: none;
+          color: #888888;
+          font-size: 1.4rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s ease;
+        }
+        .send-button:hover {
+          color: #B0B0B0;
         }
       </style>
 
       <div
-        style=" min-width: ${this.width}; width: ${
-      this.width
-    }; z-index: 998; left: 0.75rem; position: relative;     
-    padding-bottom: 0;" /* Removed padding-bottom here, handled by sticky-input container */
-        class=" ${
-          parseInt(this.width) <= 0 ? "d-none" : ""
-        } h-100 bg-darker option-window chat-sidebar-container"
+        style="min-width: ${this.width}px; width: ${this.width}px; z-index: 998; left: 0.75rem; position: relative; padding-bottom: 0;"
+        class="${parseInt(this.width.toString()) <= 0 ? "d-none" : ""} h-100 bg-darker option-window chat-sidebar-container"
       >
         <div>
-          <div class="chat-top" style="width: ${parseInt(this.width)}px;">
+          <div class="chat-top">
             <span
               @click=${this.panelClose}
-              class="material-symbols-outlined timeline-bottom-question-icon icon-sm text-secondary"
+              class="material-symbols-outlined close-icon"
               >right_panel_close</span
             >
+            <div class="top-controls">
+              <button class="new-chat-btn" @click=${this.clearChat}>
+                <span class="material-symbols-outlined icon-sm">add</span>
+              </button>
+            </div>
           </div>
-          <div class="w-100 d-flex row gap-3 p-1 chat-box-container">${lists}</div>
+          <div class="w-100 d-flex row gap-3 chat-box-container">${lists}</div>
         </div>
 
         <div class="d-flex justify-content-center align-items-center">
@@ -131,8 +247,8 @@ export class ChatSidebar extends LitElement {
             : ""}
         </div>
 
-        <div class="sticky-input w-100 p-2 mb-4 d-flex justify-content-center">
-          <ai-input style="width: 90%;" .hideOpenButton=${true}></ai-input>
+        <div class="sticky-input w-100">
+          <chat-ai-input></chat-ai-input>
         </div>
       </div>
     `;
