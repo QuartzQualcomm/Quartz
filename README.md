@@ -19,7 +19,6 @@ We are using the following models. They are deployed on either NPU/CPU (based on
 - Whisper Base (NPU for Speech-to-Text, CPU for time-stamped transcriptions) - For speech to text and transcriptions (.srt)
 - Large Mask (LaMa) Inpainting (For Video Stabilization)
 - ESRGAN (NPU) - For increasing quality of image/video
-- Yolov8 (NPU) - For object classification and adding files to timeline based on content
 - MiDAS (NPU) - Depth Estimation for Background Blurring 
 - ViT (CPU) - Image Classification for image metadata  
 ## Features
