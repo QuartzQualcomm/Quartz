@@ -217,13 +217,13 @@ export class AiInput extends LitElement {
                   addElement(response.params);
                 } else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
-                } else if (response.tool_name == "super_resolution") {
+                } else if (response.tool_name == "make_super_res") {
                   console.log(response.params);
                   renderNewImage(response.params.absolute_path, true);
-                } else if (response.tool_name == "remove_background") {
+                } else if (response.tool_name == "image_bg_remove") {
                   console.log(response.params);
                   renderNewImage(response.params.absolute_path);
-                } else if (response.tool_name == "potrait_effect") {
+                } else if (response.tool_name == "add_portrait_effect" || response.tool_name == "add_potrait_effect") {
                   console.log(response.params);
                   renderNewImage(response.params.absolute_path);
                 } else if (response.tool_name == "color_grading") {

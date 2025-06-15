@@ -34,6 +34,9 @@ import torchvision.transforms as transforms
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+import qai_hub as hub
+import os
+import onnxruntime
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -56,6 +59,17 @@ CLASSIFICATION_MODEL = None
 ImageType = Union[Image.Image, np.ndarray]
 ImageArray = np.ndarray
 
+# Global model cache
+MODELS = {
+    "midas": MIDAS_MODEL,
+    "esrgan": ESRGAN_MODEL,
+    "sam": SAM_MODEL,
+    "rmbg": RMBG_MODEL,
+    "lama": LAMA_MODEL,
+    "stable_diffusion": STABLE_DIFFUSION_MODEL,
+    "yolo": YOLO_MODEL,
+    "classification": CLASSIFICATION_MODEL
+}
 
 # Load configuration from config.yaml
 def load_config() -> Dict[str, Any]:
@@ -94,55 +108,62 @@ def load_all_models():
     Load all computer vision models into memory.
     This function is intended to be called at application startup.
     """
-    global MIDAS_MODEL, ESRGAN_MODEL, SAM_MODEL, RMBG_MODEL, LAMA_MODEL, STABLE_DIFFUSION_MODEL, YOLO_MODEL, CLASSIFICATION_MODEL
+    # Check for QAI Hub API token
+    try:
+        hub.get_api_token()
+    except Exception:
+        print("\nQualcomm AI Hub API token not found.")
+        print("Please configure it by running: 'qai-hub configure --api_token YOUR_API_TOKEN'")
+        print("You can obtain a token from: https://aihub.qualcomm.com/account/settings#api-token\n")
+        # Decide if you want to exit or continue without NPU acceleration
+        # For now, we'll just print a warning and continue.
+        pass
+
+    global MODELS
+    if not MODELS["sam"]:
+        MODELS["sam"] = _load_sam_model()
 
     console.print("[bold yellow]Initializing and loading all computer vision models...[/bold yellow]")
 
     try:
         console.print("[cyan]Loading MiDaS (depth estimation) model...[/cyan]")
-        MIDAS_MODEL = _load_midas_model()
+        MODELS["midas"] = _load_midas_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load MiDaS model: {e}[/bold red]")
 
     try:
         console.print("[cyan]Loading Real-ESRGAN (super resolution) model...[/cyan]")
-        ESRGAN_MODEL = _load_esrgan_model()
+        MODELS["esrgan"] = _load_esrgan_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load Real-ESRGAN model: {e}[/bold red]")
     
     try:
-        console.print("[cyan]Loading SAM (segmentation) model...[/cyan]")
-        SAM_MODEL = _load_sam_model()
-    except Exception as e:
-        console.print(f"[bold red]Failed to load SAM model: {e}[/bold red]")
-
-    try:
         console.print("[cyan]Loading RMBG-1.4 (background removal) model...[/cyan]")
-        RMBG_MODEL = _load_rmbg_model()
+        MODELS["rmbg"] = _load_rmbg_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load RMBG-1.4 model: {e}[/bold red]")
 
     try:
         console.print("[cyan]Loading LaMa (inpainting) model...[/cyan]")
-        LAMA_MODEL = _load_lama_model()
+        MODELS["lama"] = _load_lama_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load LaMa model: {e}[/bold red]")
 
     try:
         console.print("[cyan]Loading Stable Diffusion (image generation) model...[/cyan]")
-        STABLE_DIFFUSION_MODEL = _load_stable_diffusion_model()
+        MODELS["stable_diffusion"] = _load_stable_diffusion_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load Stable Diffusion model: {e}[/bold red]")
 
     try:
         console.print("[cyan]Loading YOLOv8 (object segmentation) model...[/cyan]")
-        YOLO_MODEL = _load_yolo_model()
+        MODELS["yolo"] = _load_yolo_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load YOLOv8 model: {e}[/bold red]")
 
     try:
         console.print("[cyan]Loading ViT (image classification) model...[/cyan]")
-        CLASSIFICATION_MODEL = _load_classification_model()
+        MODELS["classification"] = _load_classification_model()
     except Exception as e:
         console.print(f"[bold red]Failed to load ViT model: {e}[/bold red]")
 
@@ -210,10 +231,51 @@ def _run_midas_inference(model, input_data):
     return output
 
 
+class ONNXSuperResolutionWrapper:
+    """A wrapper for a local ONNX ESRGAN model to make it callable like a PyTorch model."""
+
+    def __init__(self, model_path: str):
+        print(f"Loading local ONNX ESRGAN model from: {model_path}")
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"The specified model file does not exist: {model_path}")
+
+        provider_options = [{"backend_path": "QnnHtp.dll", "htp_performance_mode": "burst"}]
+        self.session = onnxruntime.InferenceSession(
+            model_path,
+            providers=["QNNExecutionProvider"],
+            provider_options=provider_options,
+        )
+        self.input_name = self.session.get_inputs()[0].name
+        self.output_name = self.session.get_outputs()[0].name
+        print("ONNX ESRGAN model loaded successfully with NPU.")
+
+    def __call__(self, input_tensor: torch.Tensor) -> torch.Tensor:
+        """Runs inference on the ONNX model."""
+        input_feed = {self.input_name: input_tensor.cpu().numpy()}
+        result = self.session.run([self.output_name], input_feed)
+        return torch.from_numpy(result[0])
+
+
 def _load_esrgan_model():
-    """Load Real-ESRGAN super resolution model from Qualcomm AI Hub."""
-    from qai_hub_models.models.esrgan import Model
-    return Model.from_pretrained()
+    """
+    Load a locally compiled Real-ESRGAN super resolution model for the NPU.
+    
+    NOTE: This function expects a pre-compiled ONNX model located at the path 
+    specified in `model_path`.
+    """
+    # Please place your compiled ONNX model at this path or update the path accordingly.
+    model_path = "C:\\Users\\Qualcomm\\Desktop\\dev\\Quartz\\scripts\\models\\npu\\esrgan.onnx"
+    
+    try:
+        return ONNXSuperResolutionWrapper(model_path)
+    except FileNotFoundError as e:
+        console.print(f"[bold red]Error: {e}[/bold red]")
+        console.print(f"[bold yellow]Please place your compiled ESRGAN NPU model at '{model_path}' or update the path in `scripts/models/image.py`.[/bold yellow]")
+        return None
+    except Exception as e:
+        console.print(f"[bold red]Failed to load local ONNX model: {e}[/bold red]")
+        console.print("[bold yellow]Ensure ONNX Runtime and the Qualcomm AI Engine Direct SDK are correctly installed.[/bold yellow]")
+        return None
 
 
 def _load_sam_model():
@@ -414,8 +476,8 @@ def get_depth_map(img: ImageType) -> np.ndarray:
         TypeError: If input image format is not supported
         RuntimeError: If depth estimation fails or model is not loaded
     """
-    global MIDAS_MODEL
-    if MIDAS_MODEL is None:
+    global MODELS
+    if MODELS["midas"] is None:
         raise RuntimeError("MiDaS model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
@@ -423,7 +485,7 @@ def get_depth_map(img: ImageType) -> np.ndarray:
         pil_img = _validate_image_input(img)
         
         # Use the pre-loaded MiDaS model
-        model = MIDAS_MODEL
+        model = MODELS["midas"]
         
         # Prepare input for the model
         console.print("[cyan]Preparing input for MiDaS model...[/cyan]")
@@ -465,8 +527,8 @@ def get_super_resolution(img: ImageType) -> np.ndarray:
         TypeError: If input image format is not supported
         RuntimeError: If super resolution processing fails or model is not loaded
     """
-    global ESRGAN_MODEL
-    if ESRGAN_MODEL is None:
+    global MODELS
+    if MODELS["esrgan"] is None:
         raise RuntimeError("Real-ESRGAN model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
@@ -487,7 +549,7 @@ def get_super_resolution(img: ImageType) -> np.ndarray:
             # Single tile processing
             img_tensor = transforms.ToTensor()(pil_img).unsqueeze(0)
             with torch.no_grad():
-                output = ESRGAN_MODEL(img_tensor)
+                output = MODELS["esrgan"](img_tensor)
 
             if isinstance(output, torch.Tensor):
                 output_array = output.squeeze(0).permute(1, 2, 0).cpu().numpy()
@@ -506,7 +568,7 @@ def get_super_resolution(img: ImageType) -> np.ndarray:
                 console.print(f"  - Processing tile {i+1}/{len(image_tiles)}", style="cyan")
                 tile_tensor = transforms.ToTensor()(tile).unsqueeze(0)
                 with torch.no_grad():
-                    output = ESRGAN_MODEL(tile_tensor)
+                    output = MODELS["esrgan"](tile_tensor)
 
                 if isinstance(output, torch.Tensor):
                     output_array = output.squeeze(0).permute(1, 2, 0).cpu().numpy()
@@ -543,15 +605,15 @@ def background_segmentation(img: ImageType) -> np.ndarray:
         TypeError: If input image format is not supported  
         RuntimeError: If segmentation fails or model is not loaded
     """
-    global RMBG_MODEL
-    if RMBG_MODEL is None:
+    global MODELS
+    if MODELS["rmbg"] is None:
         raise RuntimeError("RMBG-1.4 model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
         pil_img = _validate_image_input(img)
         
         # Use the pre-loaded RMBG-1.4 model
-        pipe = RMBG_MODEL
+        pipe = MODELS["rmbg"]
         
         # Run inference to get mask
         console.print("[cyan]Running RMBG-1.4 inference for background segmentation...[/cyan]")
@@ -584,8 +646,8 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
         ValueError: If mask dimensions don't match image
         RuntimeError: If inpainting fails or model is not loaded
     """
-    global LAMA_MODEL
-    if LAMA_MODEL is None:
+    global MODELS
+    if MODELS["lama"] is None:
         raise RuntimeError("LaMa model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
@@ -596,7 +658,7 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
             raise ValueError("Mask dimensions must match image dimensions")
         
         # Use the pre-loaded LaMa model
-        model = LAMA_MODEL
+        model = MODELS["lama"]
         
         # Prepare inputs for LaMa model
         console.print("[cyan]Preparing inputs for LaMa model...[/cyan]")
@@ -705,15 +767,15 @@ def generate_image(prompt: str, negative_prompt: Optional[str] = None,
         ValueError: If prompt is empty or invalid
         RuntimeError: If image generation fails or model is not loaded
     """
-    global STABLE_DIFFUSION_MODEL
-    if STABLE_DIFFUSION_MODEL is None:
+    global MODELS
+    if MODELS["stable_diffusion"] is None:
         raise RuntimeError("Stable Diffusion model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
         if not prompt or not prompt.strip():
             raise ValueError("Prompt cannot be empty")
         
-        pipe = STABLE_DIFFUSION_MODEL
+        pipe = MODELS["stable_diffusion"]
         
         # Set random seed if provided
         if seed is not None:
@@ -764,8 +826,8 @@ def remove_background(img: ImageType, return_mask: bool = False) -> Union[np.nda
         TypeError: If input image format is not supported
         RuntimeError: If background removal fails or model is not loaded
     """
-    global RMBG_MODEL
-    if RMBG_MODEL is None:
+    global MODELS
+    if MODELS["rmbg"] is None:
         raise RuntimeError("RMBG-1.4 model is not loaded. Please ensure `load_all_models()` is called at startup.")
         
     try:
@@ -778,7 +840,7 @@ def remove_background(img: ImageType, return_mask: bool = False) -> Union[np.nda
             return mask
         
         # Use the pre-loaded RMBG-1.4 model
-        pipe = RMBG_MODEL
+        pipe = MODELS["rmbg"]
         
         # Get image with background removed (applies mask automatically)
         console.print("[cyan]Running RMBG-1.4 inference for background removal...[/cyan]")
@@ -805,13 +867,13 @@ def object_segmentation(img: ImageType) -> np.ndarray:
         TypeError: If input image format is not supported
         RuntimeError: If object segmentation fails or model is not loaded
     """
-    global YOLO_MODEL
-    if YOLO_MODEL is None:
+    global MODELS
+    if MODELS["yolo"] is None:
         raise RuntimeError("YOLOv8 model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
         pil_img = _validate_image_input(img)
-        model = YOLO_MODEL
+        model = MODELS["yolo"]
         
         console.print("[cyan]Running YOLOv8 inference...[/cyan]")
         results = model(pil_img)
@@ -890,8 +952,8 @@ def color_transfer(target: ImageType, reference: ImageType) -> Image.Image:
         TypeError: If input image format is not supported
         RuntimeError: If color transfer fails or model is not loaded
     """
-    global ESRGAN_MODEL
-    if ESRGAN_MODEL is None:
+    global MODELS
+    if MODELS["esrgan"] is None:
         raise RuntimeError("Real-ESRGAN model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
@@ -940,13 +1002,13 @@ def image_classification(img: ImageType) -> str:
         TypeError: If input image format is not supported
         RuntimeError: If classification fails or model is not loaded
     """
-    global CLASSIFICATION_MODEL
-    if CLASSIFICATION_MODEL is None:
+    global MODELS
+    if MODELS["classification"] is None:
         raise RuntimeError("Classification model is not loaded. Please ensure `load_all_models()` is called at startup.")
 
     try:
         pil_img = _validate_image_input(img)
-        classifier = CLASSIFICATION_MODEL
+        classifier = MODELS["classification"]
         
         console.print("[cyan]Running classification inference...[/cyan]")
         results = classifier(pil_img)
