@@ -8,6 +8,7 @@ import shutil
 # Import model loader
 from models import image as image_models
 
+
 # Initialize FastAPI application
 router = FastAPI()
 

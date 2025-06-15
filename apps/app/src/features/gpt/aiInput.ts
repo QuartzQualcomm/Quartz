@@ -247,7 +247,7 @@ export class AiInput extends LitElement {
                   console.log(myResult);
                   addElementAbs(myResult);
                 } else if (response.tool_name == "export") {
-                  console.log(response.data);
+                  console.log(response.params);
                   exportVideo(response.params);
                 } else {
                   console.log("Unknown tool:", response.tool_name);

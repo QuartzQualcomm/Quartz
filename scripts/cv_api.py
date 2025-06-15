@@ -37,7 +37,7 @@ from utils.image_helpers import (
 router = APIRouter()
 
 @router.post("/api/image/classify")
-async def api_image_classify(request: ImageRequest):
+async def api_image_classify_min(request: ImageRequest):
     validate_image_path(request.image_path)
     pil_image = load_image_from_path(request.image_path)
     top_class = image_classification(pil_image)
@@ -126,6 +126,7 @@ async def api_image_classify(request: FunRequest):
             "score": float(score)
         })
     
+    print("top_results", top_results)
     return {
         "results": top_results
     }
