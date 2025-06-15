@@ -222,9 +222,7 @@ async def getResponseFromLlama3(request: LLMRequest):
 
             if api_response and api_response.get("success"):
                 return build_response(
-                    success=True,
-                    tool_name=tool_name,
-                    params=api_response["data"]
+                    success=True, tool_name=tool_name, params=api_response["data"]
                 )
             else:
                 error_message = (
@@ -388,17 +386,16 @@ async def getResponseFromLlama3(request: LLMRequest):
                             "results"
                         ):
                             # Extract just the file names from the full paths for the response
-                          
-                            
+
                             return build_response(
                                 success=True,
                                 tool_name=tool_name,
                                 params={
                                     "query": query,
                                     "results": classification_result.get("results"),
-                                    "directory": current_directory
+                                    "directory": current_directory,
                                 },
-                                message=f"Found 3 files matching '{query}'."
+                                message=f"Found 3 files matching '{query}'.",
                             )
                         else:
                             error_msg = "No matching files found for the given query."
@@ -550,7 +547,12 @@ async def getResponseFromLlama3(request: LLMRequest):
                             success=False, tool_name=tool_name, error=error_msg
                         )
 
-                elif tool_name in ["add_text", "add_shape", "add_slide",""]:
+                elif tool_name in [
+                    "add_text",
+                    "add_shape",
+                    "add_slide",
+                    "text_to_speech",
+                ]:
                     logger.info(f"Successfully processed '{tool_name}'.")
                     return build_response(
                         success=True, tool_name=tool_name, params=extracted_params
