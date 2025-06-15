@@ -15,7 +15,7 @@ import {
   exportVideo,
   addAutoCaption
 } from "../../../reponseHandlers";
-import { addElementAbs } from "../../../reponseHandlers/element_handlers";
+import { addElementAbs, addElementAudio } from "../../../reponseHandlers/element_handlers";
 
 @customElement("ai-input")
 export class AiInput extends LitElement {
@@ -240,7 +240,11 @@ export class AiInput extends LitElement {
                 }  
                 else if (response.tool_name == "text_to_speech") {
                   console.log(response.params);
-                  addElement(response.params);
+                  addElementAudio(response.params);
+                }  
+                else if (response.tool_name == "addElementFull") {
+                  console.log(response.params);
+                  renderNewImage(response.params.output_path);
                 }  
                 else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);

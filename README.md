@@ -1,71 +1,52 @@
-# Nugget
+# Quartz
 
+An AI-enabled powerful video editor that lets you edit videos without any expertise. It uses LLMs and ML models compiled and deployed on Edge devices (Snapdragon X platforms) along with a hierarchical completion strategy that maximizes performance and speed. Even with small LLMs (8B parameters), we are able to demonstrate a use-case that can be deployed for much more complex use-cases. We use Whisper and other ML models optimized for NPU performance using ONNXRuntime-QNN.
+
+Best part? You never have to upload any sensitive or private information online. You can do everything locally, for free and with speed.
+
+
+It is built by Team Quartz for **Snapdragon Edge AI** Hackathon at Bengaluru, 2025.
 ![plot](./.github/screenshotv1.png)
 
-<p align='center'>
 
-<a href="#"><img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/cartesiancs/nugget-app?style=for-the-badge" /></a>
-&nbsp;
-<a href="#"><img alt="GitHub Repo stars" src="https://img.shields.io/github/license/cartesiancs/nugget-app?style=for-the-badge" /></a>
-&nbsp;
-<img alt="GitHub Release" src="https://img.shields.io/github/v/release/cartesiancs/nugget-app?style=for-the-badge">
-
-</p>
-
-#
-
-<p align='center'>
-English | <a href="./docs/README.ko.md">한국어</a>
-</p>
-
-<p align='center'>
-<a href="https://www.youtube.com/watch?v=Bh06VOYSMIM">View Demo</a> · <a href="https://github.com/cartesiancs/nugget-app/issues">Report Bugs</a> · <a href="https://github.com/cartesiancs/nugget-app/releases"><b>Download</b></a> · <a href="https://github.com/cartesiancs/nugget-app/issues/new">Suggest Features </a>
-</p>
-
-#
-
-Video editing software designed for motion effects and versatility.
-
-In addition to essential features like basic cut editing, animation, sound mixing, external library extensions, project management, and text editing, our software offers a wide range of powerful tools.
-
-It also supports layer-based editing, which differs from traditional track-based editing. This approach makes it easier to apply multiple effects to individual assets, providing greater flexibility and creative control.
-
-> [!IMPORTANT]
-> 📢 <strong>Currently, the 0.4.x version is being refactored.</strong> It can be a little unstable.
-
-## About The Project
+## System Architecture
 
 
-
-https://github.com/user-attachments/assets/922a8a7d-ec58-4141-bb4a-5b016da268a8
-
-
-
-_This video is made of Nugget._
-
-You can check out a limited demo of the website at the [following link](https://demo.nugget.cartesiancs.com/).
 
 ## Features
+All basic functionality of a video editor - but powered by an LLM that saves your number of clicks. Just speak out your command, and your timeline will transform as you dream.
 
-- Cut Edit
+- Chat Interface
+- Unlimited Layers
+- Audio Input to Chat
+- Speech to Text
+- Text to Speech
+- Audio/Video to .srt
+- Background Removal
+- Background Blurring
+- Adding images using their content
+- Adding text overlays 
+- OpenAI Compatibility for LLM
+- Add shapes 
+- Hierarchical Completion for small LLMs
+- Add a segue/slide
+- Denoise the audio/video
+- Super Resolution for photos/videos
+- Video Stabilization (still in works)
 - Support for all standard formats (mp4, mov, mp3, wav...)
 - Audio mixing
 - Fast rendering with FFmpeg
-- Unlimited layers
-- Cross Platform
 - Re-position, Scale, Opacity, Rotation animation, Keyframe
-- Add Text
-- External Extension
-- Save&Load Project as File
-- Multilingual Support
 - 8k Edit & 4k Edit & more resolution
 - Screen Record & Audio Record
-- Chromakey
-- AI Auto Caption (whisper)
-- Blur Effect (WebGL)
-- GIF Api
-- Draw shape
-- and more...
+- Cross Platform support (only change ML models)
+
+
+## Demo Video
+
+
+You can check out a limited demo of the website at the [following link](https://demo.nugget.cartesiancs.com/).
+
 
 ## Installation
 
@@ -75,29 +56,31 @@ First, install dependencies.
 npm install
 ```
 
-and, **Download** ffmpeg and ffprobe into the "./bin" folder. There's a version for Mac and a version for Windows separately. Compatible binary files can be downloaded from https://github.com/cartesiancs/ffmpeg4nugget
-
-next, **Permission** grant is required. Please enter the command below to grant permission for bin folder.
-
-`chmod -R 777 bin`
-
-## Running
-
-```
-npm run dev
-npm run start
-```
-
 ## Roadmap
 
-Our ultimate goal is to empower creators to produce motion graphics effortlessly. We hope they can achieve stunning motion effects without relying on heavy software like After Effects.
-
-Please refer to the [roadmap file](./docs/ROADMAP.md) for more details.
+Since this project is a fork of another video editor, we plan to keep adding features. Here are the current plans:
+1. Query Decomposition
+2. Multi-Tool Handling
+3. Adding API comptaibility for LLMs
+4. UI and Speed Improvements
+5. Compilation of binaries for different platforms
 
 ## Contributors
 
- <a href = "https://github.com/cartesiancs/nugget-app/graphs/contributors">
-   <img src = "https://contrib.rocks/image?repo=cartesiancs/nugget-app"/>
+ <a href = "https://github.com/thearnavrustagi">
+   Arnav Rustagi
+ </a>
+ <a href = "https://github.com/thisabhinav26">
+   Abhinav Lodha
+ </a>
+ <a href = "https://github.com/pjrcodes">
+   Pranjal Rustagi
+ </a>
+ <a href = "https://github.com/and-human">
+   Anshuman Sharma
+ </a>
+ <a href = "https://github.com/jalansubham7">
+   Subham Jalan
  </a>
 
 ## License
