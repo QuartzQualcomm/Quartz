@@ -12,11 +12,11 @@ import {
   renderNewImage,
   addSlideElement,
   addElement,
-  exportVideo,
+  exportVideo
 } from "../../../reponseHandlers";
 
-@customElement("ai-input")
-export class AiInput extends LitElement {
+@customElement("chat-ai-input")
+export class ChatAiInput extends LitElement {
   isEnter: boolean;
   isRecording: boolean;
   mediaRecorder: MediaRecorder | null;
@@ -41,22 +41,25 @@ export class AiInput extends LitElement {
   timelineState: ITimelineStore = useTimelineStore.getInitialState();
 
   @property({ type: Boolean })
-  hideOpenButton = false;
+  hideOpenButton = false; // This will effectively be true for this component
 
   createRenderRoot() {
-    // const parser = parseCommands(
-    //   `ADD VIDEO "/folder/day.mp4" x=0:y=0:w=1920:h=1080:t=0:d=30 ADD TEXT "Daily Vlog" x=50:y=50:w=300:t=1:d=3 ADD TEXT "이건텍스트임" x=0:y=0:w=200:t=5:d=2 ADD TEXT "이건텍스트임" x=0:y=0:w=200:t=8:d=2`,
-    // );
-
-    // console.log(parser);
-
-    // actionParsor(parser);
     if (getLocationEnv() != "electron") {
       this.classList.add("d-none");
     }
 
+    useTimelineStore.subscribe((state) => {
+      // No direct UI change, but state is kept in sync
+      this.timelineState = state; 
+    });
+
     uiStore.subscribe((state) => {
       this.uiState = state;
+      this.requestUpdate();
+    });
+
+    chatLLMStore.subscribe((state) => {
+      this.chatLLMState = state;
       this.requestUpdate();
     });
 
@@ -160,7 +163,7 @@ export class AiInput extends LitElement {
         const elementTimelineCanvasObject = document.querySelector(
           "element-timeline-canvas",
         );
-        const AssetList = document.querySelector("asset-list");
+        const AssetList = document.querySelector("asset-list")
         const context = {
           timeline: {
             cursor: timelineLatest.cursor / 1000,
@@ -176,7 +179,7 @@ export class AiInput extends LitElement {
               timelineLatest.timeline[canvasLatestObject.activeElementId],
           },
           files: AssetList.fileList || [],
-          current_directory: AssetList.nowDirectory,
+          current_directory: AssetList.nowDirectory
         };
         this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
@@ -199,9 +202,11 @@ export class AiInput extends LitElement {
                   addSlideElement(response.params);
                 } else if (response.tool_name == "add_shape") {
                   addShapeElement(response.params);
-                } else if (response.tool_name == "add_file") {
-                  addElement(response.params);
-                } else if (response.tool_name == "video") {
+                } 
+                else if (response.tool_name == "add_file"){
+                  addElement(response.params)
+                }
+                else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
                 } else if (response.tool_name == "super_resolution") {
                   console.log(response.data);
@@ -215,18 +220,11 @@ export class AiInput extends LitElement {
                 } else if (response.tool_name == "color_grading") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "add_file_classifier") {
-                  console.log("Classified file added:", response.params);
-                  // simply adds top result to the timeline
-                  const myResult = {
-                    file_url: response.params.results[0].file_path,
-                  };
-
-                  addElement(response.params);
-                } else if (response.tool_name == "export") {
+                } else if (response.tool_name == "export"){
                   console.log(response.data);
                   exportVideo(response.params);
-                } else {
+                }
+                else {
                   console.log("Unknown tool:", response.tool_name);
                 }
                 console.log("unset complete");
@@ -364,10 +362,48 @@ export class AiInput extends LitElement {
 
   render() {
     return html`
-      <div class="input-group input-group-sm d-flex align-items-center gap-2">
+      <style>
+        .input-wrapper {
+          flex-grow: 1;
+          width:100%;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          border-radius: 8px;
+          background-color: #2C2C30;
+          padding: 0.3rem 0.7rem;
+          font-size: 0.85rem;
+          box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
+          border: 1px solid #3a3f44;
+        }
+        .chat-input {
+          flex-grow: 1;
+          width:100%;
+          background-color: transparent;
+          border: none;
+          padding: 0;
+          font-size: 0.85rem;
+          color: #DCDCDC;
+        }
+        .send-button {
+          background: transparent;
+          border: none;
+          color: #888888;
+          font-size: 1.4rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s ease;
+        }
+        .send-button:hover {
+          color: #B0B0B0;
+        }
+      </style>
+      <div class="input-wrapper">
         <input
           type="text"
-          class="form-control bg-transparent text-light border-0 shadow-none"
+          class="chat-input"
           placeholder="Ask me anything..."
           .value="${this.textContent}"
           id="chatLLMInput"
@@ -388,14 +424,10 @@ export class AiInput extends LitElement {
             ${this.isRecording ? "stop_circle" : "mic"}
           </span>
         </button>
-        ${!this.hideOpenButton
-          ? html`<span
-              @click=${this.panelOpen}
-              class="material-symbols-outlined timeline-bottom-question-icon icon-sm text-secondary"
-              >right_panel_open</span
-            >`
-          : ""}
+        <button class="send-button" @click="${this.handleEnter}">
+          <span class="material-symbols-outlined">arrow_upward</span>
+        </button>
       </div>
     `;
   }
-}
+} 

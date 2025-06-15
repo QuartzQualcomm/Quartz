@@ -950,6 +950,7 @@ def image_classification(img: ImageType) -> str:
         
         console.print("[cyan]Running classification inference...[/cyan]")
         results = classifier(pil_img)
+        print(results[0])
         top_result = results[0]['label'] if results else "unknown"
         console.print("[bold green]Image classification completed.[/bold green]")
         return top_result
