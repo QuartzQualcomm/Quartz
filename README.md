@@ -58,11 +58,7 @@ You can check out a limited demo of the website at the [following link](https://
 
 ## Installation
 
-First, install dependencies.
-
-```
-npm install
-```
+Follow [INSTALL.md](INSTALL.md)
 
 ## Roadmap
 
@@ -79,15 +75,19 @@ Since this project is a fork of another video editor, we plan to keep adding fea
  <a href = "https://github.com/thearnavrustagi">
    Arnav Rustagi
  </a>
+ 
  <a href = "https://github.com/thisabhinav26">
    Abhinav Lodha
  </a>
+ 
  <a href = "https://github.com/pjrcodes">
    Pranjal Rustagi
  </a>
+ 
  <a href = "https://github.com/and-human">
    Anshuman Sharma
  </a>
+ 
  <a href = "https://github.com/jalansubham7">
    Subham Jalan
  </a>
