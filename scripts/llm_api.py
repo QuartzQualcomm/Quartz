@@ -17,9 +17,11 @@ from utils.image_helpers import (
     save_processed_image_png,
 )
 from cv_api import (
+    FunRequest,
     api_image_background_removal,
     api_image_portrait_effect,
     api_image_super_resolution,
+    api_image_classify
 )
 from data_models import ImageRequest
 from thefuzz import process
@@ -125,7 +127,20 @@ def call_llm(messages, temperature=0.0):
 @router.post("/api/llm")
 async def getResponseFromLlama3(request: LLMRequest):
     try:
-        return {"tool_name": "add_slide", "params": {"text": "Welcome to Qualcomm"}}
+        print(request.context)
+        print([request.context["current_directory"] + "/" + f for f in request.context["files"]])
+        try:
+            res = await api_image_classify(FunRequest(
+                file_paths=[request.context["current_directory"] + "/" + f for f in request.context["files"]],
+                query_string="cat",
+            ))
+        except Exception as e:
+            print(f"Error during request: {e}")
+            return {"tool_name": "add_file_classifier", "params": {"error": str(e)}}
+        print("post await")
+        print(res)
+        return {"tool_name": "add_file_classifier", "params": res}
+    
         print(json.dumps(request.context, indent=2))
         logger.info("🤖 Starting API call to getResponseFromLlama3")
         logger.info(f"Received command: '{request.command}'")
