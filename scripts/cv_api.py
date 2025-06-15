@@ -61,7 +61,15 @@ async def api_image_classify(request: FunRequest):
     """
     Classify image 
     """
-
+    print("recv")
+    if not request.file_paths or not isinstance(request.file_paths, list):
+        raise HTTPException(status_code=400, detail="file_paths must be a non-empty list")
+    if not request.query_string or not isinstance(request.query_string, str):
+        raise HTTPException(status_code=400, detail="query_string must be a non-empty string")
+    if len(request.file_paths) == 0:
+        print("send back")
+        raise HTTPException(status_code=400, detail="file_paths cannot be empty")
+    
     request.file_paths = [Path(path).resolve().as_posix() for path in request.file_paths]
     if not request.file_paths:
         raise HTTPException(status_code=400, detail="No image paths provided")
@@ -72,11 +80,12 @@ async def api_image_classify(request: FunRequest):
     # simply classify each image at each file path
     classes_returned = []
     for file_path in request.file_paths:
-        validate_image_path(file_path)
-        pil_image = load_image_from_path(file_path)
-        top_class = image_classification(pil_image)
-        classes_returned.append(top_class)
-
+        if (validate_image_path(file_path, return_exception=False)):
+            pil_image = load_image_from_path(file_path)
+            top_class = image_classification(pil_image)
+            classes_returned.append(top_class)
+        else:
+            classes_returned.append("INVALID_IMAGE_DO_NOT_USE_INVALID_IMAGE")
     
     # Enhanced Fuzzy Search System using thefuzz
     

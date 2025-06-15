@@ -4,6 +4,7 @@ import axios from "axios";
 export const ipcQuartz = {
   handleLLMResponse: async (_: any, command: string, context: any) => {
     try {
+      console.log("Handling LLM response with command:", command);
       const response = await axios.post("http://localhost:8000/api/llm", {
         command,
         context

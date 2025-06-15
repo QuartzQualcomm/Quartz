@@ -41,7 +41,7 @@ def load_config() -> Dict[str, Any]:
 CONFIG = load_config()
 
 
-def validate_image_path(image_path: str) -> None:
+def validate_image_path(image_path: str, return_exception=True) -> None:
     """
     Validate that the image path exists and is a valid image file.
     
@@ -52,17 +52,21 @@ def validate_image_path(image_path: str) -> None:
         HTTPException: If file doesn't exist or is not a valid image
     """
     if not os.path.exists(image_path):
-        raise HTTPException(status_code=404, detail=f"Image file not found: {image_path}")
+        if return_exception: raise HTTPException(status_code=404, detail=f"Image file not found: {image_path}")
+        return False
     
     if not os.path.isfile(image_path):
-        raise HTTPException(status_code=400, detail=f"Path is not a file: {image_path}")
+        if return_exception: raise HTTPException(status_code=400, detail=f"Path is not a file: {image_path}")
+        return False
     
     # Check if it's a valid image extension
     valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
     file_ext = Path(image_path).suffix.lower()
     if file_ext not in valid_extensions:
-        raise HTTPException(status_code=400, detail=f"Invalid image format. Supported formats: {valid_extensions}")
+        if return_exception: raise HTTPException(status_code=400, detail=f"Invalid image format. Supported formats: {valid_extensions}")
+        return False
 
+    return True
 
 def load_image_from_path(image_path: str) -> Image.Image:
     """
