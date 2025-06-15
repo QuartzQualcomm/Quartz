@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import Dict, Any
+from pydantic import BaseModel
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -8,7 +9,8 @@ import numpy as np
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from PIL import Image
 
-from models.image import get_super_resolution
+from models.image import get_super_resolution, image_classification
+from thefuzz import fuzz
 from data_models import (
     ImageRequest,
     ColorTransferRequest,
@@ -33,6 +35,100 @@ from utils.image_helpers import (
 )
 
 router = APIRouter()
+
+@router.post("/api/image/classify")
+async def api_image_classify(request: ImageRequest):
+    validate_image_path(request.image_path)
+    pil_image = load_image_from_path(request.image_path)
+    top_class = image_classification(pil_image)
+
+    return {
+        "top": top_class
+    }
+
+class FunRequest(BaseModel):
+    """
+    Request model for image classification endpoint.
+    
+    Attributes:
+        image_path: Absolute path to the input image file
+    """
+    file_paths: list[str]
+    query_string: str
+
+@router.post("/api/image/classify-and-choose")
+async def api_image_classify(request: FunRequest):
+    """
+    Classify image 
+    """
+    print("recv")
+    if not request.file_paths or not isinstance(request.file_paths, list):
+        raise HTTPException(status_code=400, detail="file_paths must be a non-empty list")
+    if not request.query_string or not isinstance(request.query_string, str):
+        raise HTTPException(status_code=400, detail="query_string must be a non-empty string")
+    if len(request.file_paths) == 0:
+        print("send back")
+        raise HTTPException(status_code=400, detail="file_paths cannot be empty")
+    
+    request.file_paths = [Path(path).resolve().as_posix() for path in request.file_paths]
+    if not request.file_paths:
+        raise HTTPException(status_code=400, detail="No image paths provided")
+    if not request.query_string:
+        raise HTTPException(status_code=400, detail="Query string cannot be empty")
+
+
+    # simply classify each image at each file path
+    classes_returned = []
+    for file_path in request.file_paths:
+        if (validate_image_path(file_path, return_exception=False)):
+            pil_image = load_image_from_path(file_path)
+            top_class = image_classification(pil_image)
+            classes_returned.append(top_class)
+        else:
+            classes_returned.append("INVALID_IMAGE_DO_NOT_USE_INVALID_IMAGE")
+    
+    # Enhanced Fuzzy Search System using thefuzz
+    
+    # Calculate fuzzy matching scores for each class against the query
+    scores = []
+    for class_name in classes_returned:
+        # Use ratio for basic similarity
+        ratio_score = fuzz.ratio(request.query_string.lower(), class_name.lower())
+        # Use partial_ratio to find substrings
+        partial_score = fuzz.partial_ratio(request.query_string.lower(), class_name.lower())
+        # Use token_sort_ratio to handle word order differences
+        token_score = fuzz.token_sort_ratio(request.query_string.lower(), class_name.lower())
+        
+        # Combine scores with weights
+        combined_score = (ratio_score * 0.3) + (partial_score * 0.5) + (token_score * 0.2)
+        scores.append(combined_score)
+    
+    # Find the best match
+    # If no scores are available, return empty results
+    if not scores:
+        return {"results": []}
+    
+    # Create a list of (score, index) tuples
+    scored_indices = [(score, idx) for idx, score in enumerate(scores)]
+    
+    # Sort by score in descending order
+    scored_indices.sort(reverse=True)
+    
+    # Get top 3 (or fewer if less than 3 images were provided)
+    top_k = min(3, len(scored_indices))
+    top_results = []
+    
+    for i in range(top_k):
+        score, idx = scored_indices[i]
+        top_results.append({
+            "file_path": request.file_paths[idx],
+            "class": classes_returned[idx],
+            "score": float(score)
+        })
+    
+    return {
+        "results": top_results
+    }
 
 @router.post("/api/image/super-resolution")
 async def api_image_super_resolution(request: ImageRequest):

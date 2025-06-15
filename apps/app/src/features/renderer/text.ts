@@ -50,7 +50,7 @@ export const renderText: ElementRenderFunction<TextElementType> = (
   textElement,
   timelineCursor,
 ) => {
-  console.log("epic")
+  // console.log("epic")
   let { width, height, fontsize: fontSize } = textElement;
   ctx.fillStyle = textElement.textcolor;
   ctx.lineWidth = 0;

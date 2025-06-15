@@ -4,23 +4,18 @@ export interface IChatLLMPanelStore {
   list: any[];
   isLoad: boolean;
 
-  addList: (active: any) => void;
+  addList: (element: any) => void;
 }
 
 export const chatLLMStore = createStore<IChatLLMPanelStore>((set) => ({
   list: [
     {
       from: "agent",
-      text: "Hello, how can I help you today?",
+      text: "Hello, I'm Quartz! I'm your personal local AI video editor powered by Qualcomm Snapdragon X. Start by giving me commands!",
       timestamp: new Date().toISOString(),
-    },
-    {
-      from: "user",
-      text: "I'm doing well, thank you for asking!",
-      timestamp: new Date().toISOString(),
-    },
+    }
   ],
   isLoad: false,
 
-  addList: (list: any) => set((state) => ({ list: [...state.list, list] })),
+  addList: (element: any) => set((state) => ({ list: [...state.list, element] })),
 }));

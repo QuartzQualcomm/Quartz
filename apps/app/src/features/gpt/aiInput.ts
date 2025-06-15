@@ -12,8 +12,9 @@ import {
   renderNewImage,
   addSlideElement,
   addElement,
-  exportVideo
+  exportVideo,
 } from "../../../reponseHandlers";
+import { addElementAbs } from "../../../reponseHandlers/element_handlers";
 
 @customElement("ai-input")
 export class AiInput extends LitElement {
@@ -54,6 +55,11 @@ export class AiInput extends LitElement {
     if (getLocationEnv() != "electron") {
       this.classList.add("d-none");
     }
+
+    uiStore.subscribe((state) => {
+      this.uiState = state;
+      this.requestUpdate();
+    });
 
     return this;
   }
@@ -155,7 +161,7 @@ export class AiInput extends LitElement {
         const elementTimelineCanvasObject = document.querySelector(
           "element-timeline-canvas",
         );
-        const AssetList = document.querySelector("asset-list")
+        const AssetList = document.querySelector("asset-list");
         const context = {
           timeline: {
             cursor: timelineLatest.cursor / 1000,
@@ -171,9 +177,8 @@ export class AiInput extends LitElement {
               timelineLatest.timeline[canvasLatestObject.activeElementId],
           },
           files: AssetList.fileList || [],
-          current_directory: AssetList.nowDirectory
+          current_directory: AssetList.nowDirectory,
         };
-        this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
         chatLLMState.addList({
           from: "user",
@@ -188,17 +193,29 @@ export class AiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+                
+                const chatLLMState = chatLLMStore.getState();
+                chatLLMState.addList({
+                  from: "agent",
+                  text: response.text,
+                  timestamp: new Date().toISOString(),
+                });
+                console.log("updated llmstate", chatLLMState.list);
+                // const chatLLMSidebar = 
+                // this.uiState= uiStore.getState();
+                // this.uiState.setThinking();
+                console.log(response);
+
+                
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);
                 } else if (response.tool_name == "add_slide") {
                   addSlideElement(response.params);
                 } else if (response.tool_name == "add_shape") {
                   addShapeElement(response.params);
-                } 
-                else if (response.tool_name == "add_file"){
-                  addElement(response.params)
-                }
-                else if (response.tool_name == "video") {
+                } else if (response.tool_name == "add_file") {
+                  addElement(response.params);
+                } else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
                 } else if (response.tool_name == "super_resolution") {
                   console.log(response.data);
@@ -212,24 +229,34 @@ export class AiInput extends LitElement {
                 } else if (response.tool_name == "color_grading") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "export"){
+                } else if (response.tool_name == "file_classify") {
+                  console.log("Classified file added:", response.params);
+                  // simply adds top result to the timeline
+                  const myResult = {
+                    file_url: response.params.results[0].file_path,
+                  };
+                  console.log(myResult);
+                  addElementAbs(myResult);
+                } else if (response.tool_name == "export") {
                   console.log(response.data);
                   exportVideo(response.params);
-                }
-                else {
+                } else {
                   console.log("Unknown tool:", response.tool_name);
                 }
+
+                this.uiState = uiStore.getState();
+                this.uiState.unsetThinking();
                 console.log("unset complete");
               })
               .catch((error) => {
+                this.uiState = uiStore.getState();
+                this.uiState.unsetThinking();
                 console.error("Error getting the response:", error);
                 this.toast.show("Error getting the response", 2000);
               });
             // sleep for 1 second to allow the response to be processed
-            setTimeout(() => {
-              this.uiState = uiStore.getState();
-              this.uiState.unsetThinking();
-            }, 200);
+            // setTimeout(() => {
+            // }, 200);
           } else {
             console.error("IPC method 'quartz.LLMResponse' is not available");
             this.toast.show("LLMResponse functionality not available", 2000);
@@ -340,7 +367,12 @@ export class AiInput extends LitElement {
   }
 
   panelOpen() {
-    this.uiState.setChatSidebar(250);
+    const currentWidth = this.uiState.resize.chatSidebar;
+    if (currentWidth > 0) {
+      this.uiState.setChatSidebar(0); // Close the sidebar
+    } else {
+      this.uiState.setChatSidebar(250); // Open the sidebar to 250px
+    }
   }
 
   handleInput(event) {
@@ -352,7 +384,7 @@ export class AiInput extends LitElement {
       <div class="input-group input-group-sm d-flex align-items-center gap-2">
         <input
           type="text"
-          class="form-control bg-default text-light bg-darker"
+          class="form-control bg-transparent text-light border-0 shadow-none"
           placeholder="Ask me anything..."
           .value="${this.textContent}"
           id="chatLLMInput"

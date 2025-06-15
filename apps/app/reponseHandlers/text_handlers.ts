@@ -10,7 +10,7 @@ export function addTextElement(data: any): boolean {
             console.error("Element control component not found. Make sure the component is loaded first.");
             return false;
         }
-
+        console.log("data", data);  
         // Calculate animation parameters
         const width = handleNull(data?.width) ?? 1000;
         const locationX = handleNull(data?.locationX) ?? 800;
