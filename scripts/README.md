@@ -119,3 +119,28 @@ curl -X POST "http://localhost:8000/api/image/remove-bg" \
 ```bash
 uv run python models/image.py generate_image -p "a beautiful sunset over mountains" -o test_generation.png --steps 20
 ```
+
+## Audio
+### /api/audio/transcribe
+
+Transcribe audio files using OpenAI Whisper with automatic chunking for efficient processing.
+
+**Features:**
+- Supports multiple audio formats (wav, mp3, m4a, flac, aac, ogg, mp4)
+- Automatic chunking for long audio files
+- Configurable Whisper model selection
+- Returns SRT subtitle format
+- Uses config.yaml settings by default
+
+**Sample request:**
+
+```bash
+# Basic transcription (uses config.yaml model: "base")
+curl -X POST "http://localhost:8000/api/audio/transcribe" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "audio_path": "/absolute/path/to/your/audio.wav"
+     }'
+```
+

@@ -10,3 +10,10 @@ image:
   background_removal:
     confidence_threshold: 0.5
     use_fp16: false  # Disabled for MPS compatibility
+audio:
+  transcription:
+    model: "base"
+    chunk_duration: 10.0
+    overlap_duration: 0.5
+    language: "auto"
+    task: "transcribe"
