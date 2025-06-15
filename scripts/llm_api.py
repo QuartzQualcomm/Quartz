@@ -24,7 +24,7 @@ from cv_api import (
     api_image_classify,
 )
 
-from audio_api import api_video_denoise, api_audio_transcribe
+from audio_api import api_video_denoise, api_audio_transcribe, api_text_to_speech
 
 from data_models import (
     ImageRequest,
@@ -546,12 +546,27 @@ async def getResponseFromLlama3(request: LLMRequest):
                         return build_response(
                             success=False, tool_name=tool_name, error=error_msg
                         )
+                elif tool_name == "text_to_speech":
+                    logger.info("Handling text_to_speech tool.")
+                    text = extracted_params.get("text")
+                    if not text or text == "NULL":
+                        error_msg = "Could not identify the text to convert to speech."
+                        logger.error("LLM did not extract a text for text_to_speech tool.")
+                        return build_response(success=False, tool_name=tool_name, error=error_msg)
+                    try:
+                        logger.info(f"Calling audio_api for text to speech with text: {text}")
+                        api_response = await api_text_to_speech(text)
+                        # The api_response is a dict with paths, return it as the data in the response.
+                        return build_response(success=True, tool_name=tool_name, params=api_response)
+                    except Exception as e:
+                        error_msg = f"Error during text to speech conversion: {str(e)}"
+                        logger.error(f"Text to speech conversion API call failed: {e}", exc_info=True)
+                        return build_response(success=False, tool_name=tool_name, error=error_msg)
 
                 elif tool_name in [
                     "add_text",
                     "add_shape",
                     "add_slide",
-                    "text_to_speech",
                 ]:
                     logger.info(f"Successfully processed '{tool_name}'.")
                     return build_response(
