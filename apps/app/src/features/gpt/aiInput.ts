@@ -193,6 +193,12 @@ export class AiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+                chatLLMState.addList({
+                  from: "system",
+                  text: response.text,
+                  timestamp: new Date().toISOString(),
+                });
+                
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);
                 } else if (response.tool_name == "add_slide") {

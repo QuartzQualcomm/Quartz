@@ -125,7 +125,6 @@ def call_llm(messages, temperature=0.0):
 @router.post("/api/llm")
 async def getResponseFromLlama3(request: LLMRequest):
     try:
-        return {"tool_name": "add_slide", "params": {"text": "Welcome to Qualcomm"}}
         print(json.dumps(request.context, indent=2))
         logger.info("🤖 Starting API call to getResponseFromLlama3")
         logger.info(f"Received command: '{request.command}'")
