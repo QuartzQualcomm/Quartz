@@ -11,7 +11,6 @@ class VideoStabilizationRequest(BaseModel):
         time_stamp: List containing start and end timestamps in seconds [start, end]
     """
     video_path: str
-    time_stamp: List[float]
 
 
 class VideoStabilizationResponse(BaseModel):

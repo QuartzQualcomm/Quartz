@@ -26,7 +26,7 @@ export class ControlSetting extends LitElement {
     });
 
     window.electronAPI.req.app.getAppInfo().then((result) => {
-      this.appVersion = `Nugget v${result.data.version}`;
+      this.appVersion = `Quartz Qualcomm AI Hackathon`;
     });
 
     return this;
