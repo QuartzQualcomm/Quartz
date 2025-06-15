@@ -169,4 +169,31 @@ curl -X POST "http://localhost:8000/api/audio/transcribe" \
        "audio_path": "/absolute/path/to/your/audio.wav"
      }'
 ```
+### /api/audio/text-to-speech
+
+Generate speech audio from input text using Bark by Suno.
+
+**Sample request:**
+
+```bash
+curl -X POST "http://localhost:8000/api/audio/text-to-speech" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "text": "Hello, my name is Suno. And, uh — and I like pizza.",
+       "voice_preset": "v2/en_speaker_6"
+     }'
+```
+
+**Sample response:**
+```json
+{
+  "success": true,
+  "data": {
+    "link": "/api/assets/public/tts_1234567890_v2_en_speaker_6.wav",
+    "absolute_path": "/full/path/to/assets/public/tts_1234567890_v2_en_speaker_6.wav",
+    "text": "Hello, my name is Suno. And, uh — and I like pizza.",
+    "voice_preset": "v2/en_speaker_6"
+  }
+}
+```
 
