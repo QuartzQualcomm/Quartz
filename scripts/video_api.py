@@ -1,7 +1,7 @@
 import logging
 import os
 from fastapi import HTTPException, APIRouter
-from main import router
+# from main import router
 from data_models import VideoStabilizationRequest, VideoStabilizationResponse, VideoRequest, VideoResponse, ColorGradingRequest
 from utils.video_helpers import (
     generate_unique_filename, extract_video_clip, convert_to_mov,

@@ -6,11 +6,17 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from models.audio import transcribe_audio, bark_text_to_speech
-from data_models import AudioTranscriptionRequest, AudioTranscriptionResponse, VideoRequest, VideoResponse
+from data_models import (
+    AudioTranscriptionRequest,
+    AudioTranscriptionResponse,
+    VideoRequest,
+    VideoResponse,
+)
 from data_models import TextToSpeechRequest, TextToSpeechResponse
 from audio_utils import process_media_file, remove_noise
 
 router = APIRouter()
+
 
 def _transcribe_audio_wrapper(audio_path: str, model: str = None) -> dict:
     """
@@ -18,40 +24,54 @@ def _transcribe_audio_wrapper(audio_path: str, model: str = None) -> dict:
     """
     try:
         srt_content = transcribe_audio(audio_path, model)
-        
+
         # Generate unique filename and save
         original_name = Path(audio_path).stem
         transcription_filename = f"transcription_{original_name}.srt"
-        
+
         # Ensure absolute path for assets/public directory
         public_dir = Path("assets/public").resolve()
         public_dir.mkdir(parents=True, exist_ok=True)
-        
+
         transcription_path = public_dir / transcription_filename
-        transcription_path.write_text(srt_content, encoding='utf-8')
-        
+        transcription_path.write_text(srt_content, encoding="utf-8")
+
         # Simple duration estimation (fallback)
         try:
-            result = subprocess.run([
-                "ffprobe", "-i", audio_path, 
-                "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"
-            ], capture_output=True, text=True)
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-i",
+                    audio_path,
+                    "-show_entries",
+                    "format=duration",
+                    "-v",
+                    "quiet",
+                    "-of",
+                    "csv=p=0",
+                ],
+                capture_output=True,
+                text=True,
+            )
             duration = float(result.stdout.strip()) if result.returncode == 0 else 0.0
         except:
             duration = 0.0
-        
+
         return {
             "success": True,
             "data": {
                 "link": f"/api/assets/public/{transcription_filename}",
                 "absolute_path": str(transcription_path.resolve()),
-                "content": srt_content[:500] + "..." if len(srt_content) > 500 else srt_content,
+                "content": (
+                    srt_content[:500] + "..." if len(srt_content) > 500 else srt_content
+                ),
                 "language": "auto-detected",
-                "duration": duration
-            }
+                "duration": duration,
+            },
         }
     except Exception as e:
         return {"success": False, "error": f"Transcription failed: {str(e)}"}
+
 
 def _remove_noise_wrapper(audio_path: str) -> dict:
     """
@@ -60,37 +80,38 @@ def _remove_noise_wrapper(audio_path: str) -> dict:
     try:
         # Process the audio
         processed_audio_path = remove_noise(audio_path)
-        
+
         # Move to public directory
         public_dir = Path("assets/public").resolve()
         public_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate unique filename
         original_name = Path(audio_path).stem
         output_filename = f"denoised_{original_name}.wav"
         output_path = public_dir / output_filename
-        
+
         # Move the processed file to public directory
         os.rename(processed_audio_path, output_path)
-        
+
         # Get absolute paths
         abs_output_path = str(output_path.resolve())
         abs_original_path = str(Path(audio_path).resolve())
-        
+
         return {
             "success": True,
             "data": {
                 "audio_path": abs_output_path,
                 "link": f"/api/assets/public/{output_filename}",
                 "absolute_path": abs_output_path,
-                "original_file_absolute_path": abs_original_path
-            }
+                "original_file_absolute_path": abs_original_path,
+            },
         }
     except Exception as e:
         return {"success": False, "error": f"Noise removal failed: {str(e)}"}
 
+
 @router.post("/api/audio/transcribe")
-async def api_audio_transcribe(request: AudioTranscriptionRequest):
+async def api_audio_transcribe(request):
     """
     Transcribe audio or video file using Whisper with chunked processing.
 
@@ -100,59 +121,67 @@ async def api_audio_transcribe(request: AudioTranscriptionRequest):
     try:
         # Validate file path exists
         if not os.path.exists(request.audio_path):
-            raise HTTPException(status_code=404, detail=f"File not found: {request.audio_path}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"File not found: {request.audio_path}"
+            )
+
         # Use model from request if specified, otherwise let transcribe_audio use config
-        model = request.model if hasattr(request, 'model') and request.model else None
-        
+        model = request.model if hasattr(request, "model") and request.model else None
+
         # Process the media file using our utility
         result = process_media_file(
-            request.audio_path,
-            _transcribe_audio_wrapper,
-            model
+            request.audio_path, _transcribe_audio_wrapper, model
         )
-        
+
         # Add original file absolute path to response
         if result.get("success"):
-            result["data"]["original_file_absolute_path"] = str(Path(request.audio_path).resolve())
-        
+            result["data"]["original_file_absolute_path"] = str(
+                Path(request.audio_path).resolve()
+            )
+
         return result
-        
+
     except HTTPException as e:
         return {"success": False, "error": e.detail}
     except Exception as e:
         return {"success": False, "error": f"Transcription failed: {str(e)}"}
 
+
 @router.post("/api/audio/remove-noise")
 async def api_remove_noise(request: AudioTranscriptionRequest):
     """
     Remove background noise from audio or video file.
-    
+
     Supports both audio and video files - if video is provided, audio will be extracted first,
     processed, and then combined back with the original video.
     """
     try:
         # Validate file path exists
         if not os.path.exists(request.audio_path):
-            raise HTTPException(status_code=404, detail=f"File not found: {request.audio_path}")
-        
+            raise HTTPException(
+                status_code=404, detail=f"File not found: {request.audio_path}"
+            )
+
         # Process the media file using our utility
-        result = process_media_file(
-            request.audio_path,
-            _remove_noise_wrapper
-        )
-        
+        result = process_media_file(request.audio_path, _remove_noise_wrapper)
+
         # Add original file absolute path to response if not already present
-        if result.get("success") and "original_file_absolute_path" not in result["data"]:
-            result["data"]["original_file_absolute_path"] = str(Path(request.audio_path).resolve())
-        
+        if (
+            result.get("success")
+            and "original_file_absolute_path" not in result["data"]
+        ):
+            result["data"]["original_file_absolute_path"] = str(
+                Path(request.audio_path).resolve()
+            )
+
         return result
-        
+
     except HTTPException as e:
         return {"success": False, "error": e.detail}
     except Exception as e:
         return {"success": False, "error": f"Noise removal failed: {str(e)}"}
-    
+
+
 @router.post("/api/audio/text-to-speech")
 async def api_text_to_speech(request: TextToSpeechRequest):
     """
@@ -174,11 +203,12 @@ async def api_text_to_speech(request: TextToSpeechRequest):
             link=link,
             absolute_path=abs_path,
             text=request.text,
-            voice_preset=voice_preset
+            voice_preset=voice_preset,
         )
         return {"success": True, "data": response}
     except Exception as e:
         return {"success": False, "error": f"Text-to-speech failed: {str(e)}"}
+
 
 @router.post("/api/video/denoise")
 async def api_video_denoise(request: VideoRequest):
@@ -187,13 +217,18 @@ async def api_video_denoise(request: VideoRequest):
     """
     try:
         from models.audio import remove_noise_from_video
+
         # Validate video path
         if not os.path.exists(request.video_path):
-            raise HTTPException(status_code=404, detail=f"Video file not found: {request.video_path}")
+            raise HTTPException(
+                status_code=404, detail=f"Video file not found: {request.video_path}"
+            )
 
         output_path = remove_noise_from_video(request.video_path)
         link = f"/api/assets/public/{Path(output_path).name}"
-        response = VideoResponse(link=link, absolute_path=str(Path(output_path).resolve()))
+        response = VideoResponse(
+            link=link, absolute_path=str(Path(output_path).resolve())
+        )
         return {"success": True, "data": response}
     except HTTPException as e:
         return {"success": False, "error": e.detail}

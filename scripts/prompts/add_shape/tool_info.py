@@ -1,6 +1,6 @@
 TOOL_INFO = {
     "add_shape": {
-        "description": "Add a shape onto the timeline. Can be a 'circle', 'triangle', or 'rectangle'.",
+        "description": "Add a shape onto the timeline.",
         "params": {
             "shape": {"type": "string", "description": "The type of shape to add. Can be 'circle', 'triangle', or 'rectangle'."},
             "locationX": {"type": "integer", "description": "The X coordinate for the top-left corner of the shape's bounding box."},

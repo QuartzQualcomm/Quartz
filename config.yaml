@@ -1,0 +1,16 @@
+# ... existing code ...
+                "background_removal": {
+                    "confidence_threshold": 0.5,
+                    "use_fp16": True
+                }
+            }
+        }
+    },
+    "audio": {
+        "whisper_npu": {
+            "encoder_path": "models/npu/WhisperEncoder.onnx",
+            "decoder_path": "models/npu/WhisperDecoder.onnx",
+            "sample_rate": 16000
+        }
+    }
+} 

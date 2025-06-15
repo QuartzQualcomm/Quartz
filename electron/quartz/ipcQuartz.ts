@@ -2,7 +2,7 @@
 import axios from "axios";
 
 // Extract the base URL into a constant for easier configuration
-const API_BASE_URL = "http://192.168.46.138:8000";
+const API_BASE_URL = "http://0.0.0.0:8000";
 
 export const ipcQuartz = {
   handleLLMResponse: async (_: any, command: string, context: any) => {
@@ -24,7 +24,7 @@ export const ipcQuartz = {
       // console.log(audioData);
       console.log("HI HI HI HIHI ")
 
-      const response = await axios.post(`${API_BASE_URL}/api/transcribe`, {
+      const response = await axios.post(`http://0.0.0.0:8001/api/transcribe`, {
         audioData
       });
       console.log(response);
