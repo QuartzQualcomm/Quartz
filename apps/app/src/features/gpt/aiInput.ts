@@ -179,7 +179,6 @@ export class AiInput extends LitElement {
           files: AssetList.fileList || [],
           current_directory: AssetList.nowDirectory,
         };
-        this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
         chatLLMState.addList({
           from: "user",
@@ -194,6 +193,20 @@ export class AiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+                
+                const chatLLMState = chatLLMStore.getState();
+                chatLLMState.addList({
+                  from: "agent",
+                  text: response.text,
+                  timestamp: new Date().toISOString(),
+                });
+                console.log("updated llmstate", chatLLMState.list);
+                // const chatLLMSidebar = 
+                // this.uiState= uiStore.getState();
+                // this.uiState.setThinking();
+                console.log(response);
+
+                
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);
                 } else if (response.tool_name == "add_slide") {

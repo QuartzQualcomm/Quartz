@@ -4,7 +4,7 @@ export interface IChatLLMPanelStore {
   list: any[];
   isLoad: boolean;
 
-  addList: (active: any) => void;
+  addList: (element: any) => void;
 }
 
 export const chatLLMStore = createStore<IChatLLMPanelStore>((set) => ({
@@ -17,5 +17,5 @@ export const chatLLMStore = createStore<IChatLLMPanelStore>((set) => ({
   ],
   isLoad: false,
 
-  addList: (list: any) => set((state) => ({ list: [...state.list, list] })),
+  addList: (element: any) => set((state) => ({ list: [...state.list, element] })),
 }));

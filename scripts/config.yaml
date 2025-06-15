@@ -21,6 +21,6 @@ image:
 "silence_threshold": 0.001    # Threshold for silence detection
 "queue_timeout": 1.0          # Timeout for audio queue operations
 
-# model paths
-"encoder_path": "models/whisper/WhisperEncoder.onnx"
-"decoder_path": "models/whisper/WhisperDecoder.onnx"
+# # model paths
+# "encoder_path": "models/whisper/WhisperEncoder.onnx"
+# "decoder_path": "models/whisper/WhisperDecoder.onnx"

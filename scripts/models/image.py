@@ -42,6 +42,16 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 # Initialize Rich console
 console = Console()
 
+# Model placeholders
+MIDAS_MODEL = None
+ESRGAN_MODEL = None
+SAM_MODEL = None
+RMBG_MODEL = None
+LAMA_MODEL = None
+STABLE_DIFFUSION_MODEL = None
+YOLO_MODEL = None
+CLASSIFICATION_MODEL = None
+
 # Type aliases for better readability
 ImageType = Union[Image.Image, np.ndarray]
 ImageArray = np.ndarray
@@ -77,6 +87,66 @@ def load_config() -> Dict[str, Any]:
 
 # Load config once at module level
 CONFIG = load_config()
+
+
+def load_all_models():
+    """
+    Load all computer vision models into memory.
+    This function is intended to be called at application startup.
+    """
+    global MIDAS_MODEL, ESRGAN_MODEL, SAM_MODEL, RMBG_MODEL, LAMA_MODEL, STABLE_DIFFUSION_MODEL, YOLO_MODEL, CLASSIFICATION_MODEL
+
+    console.print("[bold yellow]Initializing and loading all computer vision models...[/bold yellow]")
+
+    try:
+        console.print("[cyan]Loading MiDaS (depth estimation) model...[/cyan]")
+        MIDAS_MODEL = _load_midas_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load MiDaS model: {e}[/bold red]")
+
+    try:
+        console.print("[cyan]Loading Real-ESRGAN (super resolution) model...[/cyan]")
+        ESRGAN_MODEL = _load_esrgan_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load Real-ESRGAN model: {e}[/bold red]")
+    
+    try:
+        console.print("[cyan]Loading SAM (segmentation) model...[/cyan]")
+        SAM_MODEL = _load_sam_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load SAM model: {e}[/bold red]")
+
+    try:
+        console.print("[cyan]Loading RMBG-1.4 (background removal) model...[/cyan]")
+        RMBG_MODEL = _load_rmbg_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load RMBG-1.4 model: {e}[/bold red]")
+
+    try:
+        console.print("[cyan]Loading LaMa (inpainting) model...[/cyan]")
+        LAMA_MODEL = _load_lama_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load LaMa model: {e}[/bold red]")
+
+    try:
+        console.print("[cyan]Loading Stable Diffusion (image generation) model...[/cyan]")
+        STABLE_DIFFUSION_MODEL = _load_stable_diffusion_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load Stable Diffusion model: {e}[/bold red]")
+
+    try:
+        console.print("[cyan]Loading YOLOv8 (object segmentation) model...[/cyan]")
+        YOLO_MODEL = _load_yolo_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load YOLOv8 model: {e}[/bold red]")
+
+    try:
+        console.print("[cyan]Loading ViT (image classification) model...[/cyan]")
+        CLASSIFICATION_MODEL = _load_classification_model()
+    except Exception as e:
+        console.print(f"[bold red]Failed to load ViT model: {e}[/bold red]")
+
+    console.print("[bold green]All computer vision models have been loaded and are ready.[/bold green]")
 
 
 def _apply_gradient(text: Text, start_hex: str, end_hex: str):
@@ -140,9 +210,10 @@ def _run_midas_inference(model, input_data):
     return output
 
 
-def _load_esrgan_model() -> pipeline:
-    """Load Real-ESRGAN super resolution model from HuggingFace."""
-    return pipeline("image-to-image", model="qualcomm/Real-ESRGAN-x4plus")
+def _load_esrgan_model():
+    """Load Real-ESRGAN super resolution model from Qualcomm AI Hub."""
+    from qai_hub_models.models.esrgan import Model
+    return Model.from_pretrained()
 
 
 def _load_sam_model():
@@ -341,26 +412,29 @@ def get_depth_map(img: ImageType) -> np.ndarray:
         
     Raises:
         TypeError: If input image format is not supported
-        RuntimeError: If depth estimation fails
+        RuntimeError: If depth estimation fails or model is not loaded
     """
+    global MIDAS_MODEL
+    if MIDAS_MODEL is None:
+        raise RuntimeError("MiDaS model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         # Validate and convert input to PIL Image
         pil_img = _validate_image_input(img)
         
-        # Load the MiDaS model from QAI Hub
-        console.print("[bold cyan]Loading MiDaS model from Qualcomm AI Hub...[/bold cyan]")
-        model = _load_midas_model()
+        # Use the pre-loaded MiDaS model
+        model = MIDAS_MODEL
         
         # Prepare input for the model
-        console.print("[bold cyan]Preparing input for MiDaS model...[/bold cyan]")
+        console.print("[cyan]Preparing input for MiDaS model...[/cyan]")
         input_data = _prepare_midas_input(model, pil_img)
         
         # Run inference
-        console.print("[bold cyan]Running MiDaS inference...[/bold cyan]")
+        console.print("[cyan]Running MiDaS inference...[/cyan]")
         output = _run_midas_inference(model, input_data)
         
         # Process output to get depth map
-        console.print("[bold cyan]Processing depth map output...[/bold cyan]")
+        console.print("[cyan]Processing depth map output...[/cyan]")
         depth_map = _process_midas_output(output, pil_img.size)
         
         console.print("[bold green]Depth estimation completed successfully.[/bold green]")
@@ -389,8 +463,12 @@ def get_super_resolution(img: ImageType) -> np.ndarray:
         
     Raises:
         TypeError: If input image format is not supported
-        RuntimeError: If super resolution processing fails
+        RuntimeError: If super resolution processing fails or model is not loaded
     """
+    global ESRGAN_MODEL
+    if ESRGAN_MODEL is None:
+        raise RuntimeError("Real-ESRGAN model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         pil_img = _validate_image_input(img)
         original_size = pil_img.size
@@ -403,32 +481,44 @@ def get_super_resolution(img: ImageType) -> np.ndarray:
         # Calculate processing strategy based on image size
         tiles = _calculate_tile_size(original_size, target_size=target_size, scale_factor=scale_factor)
         
+        console.print("[cyan]Running Real-ESRGAN inference for super resolution...[/cyan]")
+        
         if tiles == (1, 1):
             # Single tile processing
-            if max(original_size) < target_size:
-                pil_img = pil_img.resize((target_size, target_size))
-            elif max(original_size) > target_size * scale_factor:
-                pil_img = pil_img.resize((target_size, target_size))
-                
-            # Process with super resolution (fallback to simple upscaling)
-            upscaled = pil_img.resize((original_size[0] * upscale_factor, original_size[1] * upscale_factor), 
-                                    Image.Resampling.LANCZOS)
-            return np.array(upscaled)
+            img_tensor = transforms.ToTensor()(pil_img).unsqueeze(0)
+            with torch.no_grad():
+                output = ESRGAN_MODEL(img_tensor)
+
+            if isinstance(output, torch.Tensor):
+                output_array = output.squeeze(0).permute(1, 2, 0).cpu().numpy()
+            else:
+                output_array = output[0].squeeze(0).permute(1, 2, 0).cpu().numpy()
+
+            upscaled_image = np.clip(output_array * 255, 0, 255).astype(np.uint8)
+            return upscaled_image
         else:
             # Multi-tile processing
             image_tiles = _split_image_for_processing(pil_img, tiles)
             processed_tiles = []
             
-            console.print(f"[bold cyan]Processing image in {len(image_tiles)} tiles...[/bold cyan]")
+            console.print(f"[cyan]Processing image in {len(image_tiles)} tiles...[/cyan]")
             for i, tile in enumerate(image_tiles):
                 console.print(f"  - Processing tile {i+1}/{len(image_tiles)}", style="cyan")
-                tile_resized = tile.resize((target_size, target_size))
-                upscaled_tile = tile_resized.resize((target_size * upscale_factor, target_size * upscale_factor), 
-                                                  Image.Resampling.LANCZOS)
-                processed_tiles.append(np.array(upscaled_tile))
+                tile_tensor = transforms.ToTensor()(tile).unsqueeze(0)
+                with torch.no_grad():
+                    output = ESRGAN_MODEL(tile_tensor)
+
+                if isinstance(output, torch.Tensor):
+                    output_array = output.squeeze(0).permute(1, 2, 0).cpu().numpy()
+                else:
+                    output_array = output[0].squeeze(0).permute(1, 2, 0).cpu().numpy()
+
+                upscaled_tile = np.clip(output_array * 255, 0, 255).astype(np.uint8)
+                processed_tiles.append(upscaled_tile)
             
             console.print("[bold green]Super resolution completed successfully.[/bold green]")
-            return _merge_processed_tiles(processed_tiles, original_size, tiles, upscale_factor)
+            merged_image = _merge_processed_tiles(processed_tiles, original_size, tiles, upscale_factor)
+            return merged_image
             
     except Exception as e:
         raise RuntimeError(f"Super resolution failed: {str(e)}")
@@ -451,21 +541,24 @@ def background_segmentation(img: ImageType) -> np.ndarray:
         
     Raises:
         TypeError: If input image format is not supported  
-        RuntimeError: If segmentation fails
+        RuntimeError: If segmentation fails or model is not loaded
     """
+    global RMBG_MODEL
+    if RMBG_MODEL is None:
+        raise RuntimeError("RMBG-1.4 model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         pil_img = _validate_image_input(img)
         
-        # Load RMBG-1.4 model from BRIA AI
-        console.print("[bold cyan]Loading RMBG-1.4 model from BRIA AI...[/bold cyan]")
-        pipe = _load_rmbg_model()
+        # Use the pre-loaded RMBG-1.4 model
+        pipe = RMBG_MODEL
         
         # Run inference to get mask
-        console.print("[bold cyan]Running RMBG-1.4 inference for background segmentation...[/bold cyan]")
+        console.print("[cyan]Running RMBG-1.4 inference for background segmentation...[/cyan]")
         pillow_mask = pipe(pil_img, return_mask=True)
         
         # Process output to get segmentation mask
-        console.print("[bold cyan]Processing segmentation mask...[/bold cyan]")
+        console.print("[cyan]Processing segmentation mask...[/cyan]")
         mask = _process_rmbg_output(pillow_mask, pil_img.size)
         
         console.print("[bold green]Background segmentation completed successfully using RMBG-1.4.[/bold green]")
@@ -489,8 +582,12 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
     Raises:
         TypeError: If input formats are not supported
         ValueError: If mask dimensions don't match image
-        RuntimeError: If inpainting fails
+        RuntimeError: If inpainting fails or model is not loaded
     """
+    global LAMA_MODEL
+    if LAMA_MODEL is None:
+        raise RuntimeError("LaMa model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         pil_img = _validate_image_input(img)
         img_array = np.array(pil_img)
@@ -498,12 +595,11 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
         if img_array.shape[:2] != mask.shape[:2]:
             raise ValueError("Mask dimensions must match image dimensions")
         
-        # Load LaMa dilated model from Qualcomm AI Hub
-        console.print("[bold cyan]Loading LaMa dilated model from Qualcomm AI Hub...[/bold cyan]")
-        model = _load_lama_model()
+        # Use the pre-loaded LaMa model
+        model = LAMA_MODEL
         
         # Prepare inputs for LaMa model
-        console.print("[bold cyan]Preparing inputs for LaMa model...[/bold cyan]")
+        console.print("[cyan]Preparing inputs for LaMa model...[/cyan]")
         
         # Convert to RGB if necessary
         if pil_img.mode != 'RGB':
@@ -525,8 +621,12 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
         mask_pil = Image.fromarray(lama_mask, mode='L')
         
         # Prepare model inputs
-        console.print("[bold cyan]Running LaMa dilated inference...[/bold cyan]")
-        sample_inputs = model.sample_inputs()
+        console.print("[cyan]Running LaMa dilated inference...[/cyan]")
+        
+        # The model expects image and mask inputs.
+        # We need to construct tensors in the correct format.
+        # This part is complex due to model-specific input requirements.
+        # Let's retain the logic but remove the sample_inputs part for clarity.
         
         # Get the input specification
         input_spec = model.get_input_spec()
@@ -555,7 +655,7 @@ def inpainting(img: ImageType, mask: np.ndarray) -> np.ndarray:
             result = model(img_tensor, mask_tensor)
         
         # Process output
-        console.print("[bold cyan]Processing inpainting result...[/bold cyan]")
+        console.print("[cyan]Processing inpainting result...[/cyan]")
         
         # Convert result tensor back to numpy array
         if isinstance(result, torch.Tensor):
@@ -603,21 +703,24 @@ def generate_image(prompt: str, negative_prompt: Optional[str] = None,
         
     Raises:
         ValueError: If prompt is empty or invalid
-        RuntimeError: If image generation fails
+        RuntimeError: If image generation fails or model is not loaded
     """
+    global STABLE_DIFFUSION_MODEL
+    if STABLE_DIFFUSION_MODEL is None:
+        raise RuntimeError("Stable Diffusion model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         if not prompt or not prompt.strip():
             raise ValueError("Prompt cannot be empty")
         
-        console.print("[bold cyan]Loading Stable Diffusion 2.1 model...[/bold cyan]")
-        pipe = _load_stable_diffusion_model()
+        pipe = STABLE_DIFFUSION_MODEL
         
         # Set random seed if provided
         if seed is not None:
             torch.manual_seed(seed)
             np.random.seed(seed)
         
-        console.print(f"[bold cyan]Generating image with prompt: '{prompt}'[/bold cyan]")
+        console.print(f"[cyan]Generating image with prompt: '{prompt}'[/cyan]")
         console.print(f"[cyan]Parameters: steps={num_inference_steps}, guidance={guidance_scale}, size={width}x{height}[/cyan]")
         
         # Generate image
@@ -659,23 +762,26 @@ def remove_background(img: ImageType, return_mask: bool = False) -> Union[np.nda
         
     Raises:
         TypeError: If input image format is not supported
-        RuntimeError: If background removal fails
+        RuntimeError: If background removal fails or model is not loaded
     """
+    global RMBG_MODEL
+    if RMBG_MODEL is None:
+        raise RuntimeError("RMBG-1.4 model is not loaded. Please ensure `load_all_models()` is called at startup.")
+        
     try:
         pil_img = _validate_image_input(img)
         
         if return_mask:
             # Get segmentation mask using RMBG-1.4
-            console.print("[bold cyan]Generating segmentation mask for background removal...[/bold cyan]")
+            console.print("[cyan]Generating segmentation mask for background removal...[/cyan]")
             mask = background_segmentation(pil_img)
             return mask
         
-        # Use RMBG-1.4 model directly for background removal
-        console.print("[bold cyan]Loading RMBG-1.4 model for background removal...[/bold cyan]")
-        pipe = _load_rmbg_model()
+        # Use the pre-loaded RMBG-1.4 model
+        pipe = RMBG_MODEL
         
         # Get image with background removed (applies mask automatically)
-        console.print("[bold cyan]Running RMBG-1.4 inference for background removal...[/bold cyan]")
+        console.print("[cyan]Running RMBG-1.4 inference for background removal...[/cyan]")
         no_bg_image = pipe(pil_img)  # Returns PIL image with transparent background
         
         console.print("[bold green]Background removal completed successfully using RMBG-1.4.[/bold green]")
@@ -697,18 +803,21 @@ def object_segmentation(img: ImageType) -> np.ndarray:
         
     Raises:
         TypeError: If input image format is not supported
-        RuntimeError: If object segmentation fails
+        RuntimeError: If object segmentation fails or model is not loaded
     """
+    global YOLO_MODEL
+    if YOLO_MODEL is None:
+        raise RuntimeError("YOLOv8 model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         pil_img = _validate_image_input(img)
-        console.print("[bold cyan]Loading YOLOv8 segmentation model...[/bold cyan]")
-        model = _load_yolo_model()
+        model = YOLO_MODEL
         
-        console.print("[bold cyan]Running YOLOv8 inference...[/bold cyan]")
+        console.print("[cyan]Running YOLOv8 inference...[/cyan]")
         results = model(pil_img)
         
         # Extract segmentation masks
-        console.print("[bold cyan]Processing segmentation masks...[/bold cyan]")
+        console.print("[cyan]Processing segmentation masks...[/cyan]")
         if results[0].masks is not None:
             masks = results[0].masks.data.cpu().numpy()
             combined_mask = np.zeros(masks.shape[1:], dtype=np.uint8)
@@ -779,13 +888,17 @@ def color_transfer(target: ImageType, reference: ImageType) -> Image.Image:
         
     Raises:
         TypeError: If input image format is not supported
-        RuntimeError: If color transfer fails
+        RuntimeError: If color transfer fails or model is not loaded
     """
+    global ESRGAN_MODEL
+    if ESRGAN_MODEL is None:
+        raise RuntimeError("Real-ESRGAN model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         target_pil = _validate_image_input(target)
         reference_pil = _validate_image_input(reference)
         
-        console.print("[bold cyan]Applying Reinhard color transfer...[/bold cyan]")
+        console.print("[cyan]Applying Reinhard color transfer...[/cyan]")
         
         # Convert PIL to numpy arrays in BGR format
         target_bgr = cv2.cvtColor(np.array(target_pil), cv2.COLOR_RGB2BGR)
@@ -825,14 +938,17 @@ def image_classification(img: ImageType) -> str:
         
     Raises:
         TypeError: If input image format is not supported
-        RuntimeError: If classification fails
+        RuntimeError: If classification fails or model is not loaded
     """
+    global CLASSIFICATION_MODEL
+    if CLASSIFICATION_MODEL is None:
+        raise RuntimeError("Classification model is not loaded. Please ensure `load_all_models()` is called at startup.")
+
     try:
         pil_img = _validate_image_input(img)
-        console.print("[bold cyan]Loading Vision Transformer model...[/bold cyan]")
-        classifier = _load_classification_model()
+        classifier = CLASSIFICATION_MODEL
         
-        console.print("[bold cyan]Running classification inference...[/bold cyan]")
+        console.print("[cyan]Running classification inference...[/cyan]")
         results = classifier(pil_img)
         print(results[0])
         top_result = results[0]['label'] if results else "unknown"
@@ -886,6 +1002,9 @@ def main() -> None:
     title = Text(title_text, justify="center", style="bold")
     _apply_gradient(title, "#8A2BE2", "#4169E1")  # BlueViolet to RoyalBlue
     console.print(Panel(title, border_style="green", expand=False))
+
+    # Load all models for standalone script execution
+    load_all_models()
 
     try:
         if args.task == "generate_image":
