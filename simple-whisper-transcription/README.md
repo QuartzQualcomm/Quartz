@@ -16,11 +16,11 @@ This is an extensible base app for custom language transcription workflows using
 ### Implementation
 This app was built for the Snapdragon X Elite but designed to be platform agnostic. Performance may vary on other hardware.
 
-- Machine: Dell Latitude 7455
+- Machine: Thinkpad 14s
 - Chip: Snapdragon X Elite
 - OS: Windows 11
 - Memory: 32 GB
-- Python Version: 3.11.9 (x86)
+- Python Version: 3.11.9 (ARM64)
 
 ### Setup
 1. Download & Extract [FFMPeg for Windows](https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip).
@@ -71,58 +71,4 @@ This app was built for the Snapdragon X Elite but designed to be platform agnost
     "encoder_path": "models/WhisperEncoder.onnx"
     "decoder_path": "models/WhisperDecoder.onnx"
     ```
-
-### Usage
-With the virtual environment active, run the code:
-```
-python src\LiveTranscriber.py 
-```
-
-You can also use the GUI version of the application:
-```
-python src\gui_transcriber.py
-```
-
-### Simple CPU Server with Word Timestamps
-For a lightweight, CPU-only alternative that provides word-level timestamps, you can use the `whisper_simple.py` server. This server uses the `whisper-timestamped` library.
-
-**1. Install Dependencies:**
-This server has its own set of dependencies. Install them using the following command:
-```bash
-pip install -r requirements-simple.txt
-```
-If you are on a machine without a dedicated GPU, you may want to install the CPU version of PyTorch first to avoid a large download:
-```bash
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-pip install -r requirements-simple.txt
-```
-
-**2. Running the server:**
-With the virtual environment active, run the following command:
-```
-python src\whisper_simple.py
-```
-The server will start on `http://127.0.0.1:8002`.
-
-**3. Testing the endpoint:**
-You can send a request to the server using a tool like `curl`. Make sure to replace `/path/to/your/audio.wav` with the actual path to an audio file.
-
-```bash
-curl -X POST "http://127.0.0.1:8002/transcribe" \
--H "Content-Type: multipart/form-data" \
--F "file=@/path/to/your/audio.wav"
-```
-
-### Contributing
-Contributions to extend the functionality are welcome and encouraged. Please review the [contribution guide](CONTRIBUTING.md) prior to submitting a pull request. 
-
-Please do your best to maintain the "base template" spirit of the app so that it remains a blank canvas for developers looking to build a custom local chat app.
-
-### Code of Conduct
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
-
-This project follows the [Contributor Covenant](https://www.contributor-covenant.org/). Read more about it in the [code of conduct](CODE_OF_CONDUCT.md) file.
-
-# Simple Whisper Transcription
-
-This project provides a Python-based server that utilizes OpenAI's Whisper model for audio transcription. It can be used to convert speech from audio files or streams into text.
+4. You can run `python src/openai_server.py` to launch the Whisper server.

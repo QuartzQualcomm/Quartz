@@ -1,5 +1,7 @@
 # Installation Guide
 
+For a single script to automate the setup on Windows, please use the [Windows Setup Script](.\setup_windows.ps1).
+
 This guide provides instructions on how to set up the project environment using Conda and Node.js, and run the necessary services.
 
 ## Prerequisites
