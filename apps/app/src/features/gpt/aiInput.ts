@@ -212,12 +212,16 @@ export class AiInput extends LitElement {
                   renderNewImage(response.data.absolute_path);
                 } else if (response.tool_name == "add_file_classifier") {
                   console.log("Classified file added:", response.params);
+                  // simply adds top result to the timeline
+                  const myResult = {
+                    file_url: response.params.results[0].file_path,
+                  };
+
                   addElement(response.params);
-                } else if (response.tool_name == "export"){
+                } else if (response.tool_name == "export") {
                   console.log(response.data);
                   exportVideo(response.params);
-                }
-                else {
+                } else {
                   console.log("Unknown tool:", response.tool_name);
                 }
                 console.log("unset complete");
