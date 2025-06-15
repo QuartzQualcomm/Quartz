@@ -63,10 +63,6 @@ if (Get-Command conda -ErrorAction SilentlyContinue) {
     .\quartz-venv\Scripts\Activate.ps1
 }
 
-Write-Host 'Installing uv (env manager) and dependencies...'
-pip install uv
-uv pip sync
-
 Write-Host '=== 6. Install Bark TTS Model ==='
 pip install git+https://github.com/suno-ai/bark.git
 
