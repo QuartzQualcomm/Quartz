@@ -242,6 +242,10 @@ export class AiInput extends LitElement {
                   console.log(response.params);
                   addElement(response.params);
                 }  
+                else if (response.tool_name == "addElementFull") {
+                  console.log(response.params);
+                  renderNewImage(response.params.output_path);
+                }  
                 else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);
                   // simply adds top result to the timeline
@@ -384,7 +388,7 @@ export class AiInput extends LitElement {
     if (currentWidth > 0) {
       this.uiState.setChatSidebar(0); // Close the sidebar
     } else {
-      this.uiState.setChatSidebar(250); // Open the sidebar to 250px
+      this.uiState.setChatSidebar(375); // Open the sidebar to 400px (increased from 250px)
     }
   }
 
