@@ -39,17 +39,19 @@ export function addSlideElement(params: any): boolean {
             duration: handleNull(params?.duration) ?? 3000,
             shape: "rectangle"
         };
-        // if(!handleNull(params?.bgColor)){
-        //     const filename = `${projectDir}/assets/images/132.png` // get the path for this file from the asset folder
-        //     addImageSlide(filename)
-        // }
-        // else{
+        let imageput = false
+        if(!handleNull(params?.bgColor)){
+            const filename = `${projectDir}/assets/images/132.png` // get the path for this file from the asset folder
+            addImageSlide(filename)
+            imageput = true
+        }
+        else{
         const shapeSuccess = addShapeElement(bgShapeParams);
         if (!shapeSuccess) {
             console.error("Failed to create background shape");
             return false;
         }
-        // }
+        }   
         // Calculate text box dimensions
         const textWidth = 1600;
         const textHeight = 200;
@@ -61,8 +63,8 @@ export function addSlideElement(params: any): boolean {
         // Then create the text element
         const textParams = {
             text: handleNull(params?.text) ?? "Welcome to the Hack!",
-            textColor: handleNull(params?.textColor) ?? "#2A2AEA",
-            fontsize: 120,
+            textColor: handleNull(params?.textColor) ?? (imageput ?"#ffffff" :"#2A2AEA"),
+            fontsize: 140,
             locationX: centerX,
             locationY: centerY,
             width: textWidth,
@@ -79,12 +81,14 @@ export function addSlideElement(params: any): boolean {
                 name: handleNull(params?.fontName) ?? "calibri"
             }
         };
-
-        const textSuccess = addTextElement(textParams);
-        if (!textSuccess) {
-            console.error("Failed to create text element");
-            return false;
-        }
+        // add a delay of 5 seconds here
+        setTimeout(() => {
+            const textSuccess = addTextElement(textParams);
+            if (!textSuccess) {
+                console.error("Failed to create text element");
+                return false;
+            }
+        }, 1000);
 
         console.log("Slide created successfully:", params);
         return true;
