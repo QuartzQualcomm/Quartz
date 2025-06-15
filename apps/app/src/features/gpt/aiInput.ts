@@ -242,6 +242,10 @@ export class AiInput extends LitElement {
                   console.log(response.params);
                   addElement(response.params);
                 }  
+                else if (response.tool_name == "addElementFull") {
+                  console.log(response.params);
+                  renderNewImage(response.params.output_path);
+                }  
                 else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);
                   // simply adds top result to the timeline
