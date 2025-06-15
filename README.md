@@ -35,7 +35,8 @@ All basic functionality of a video editor - but powered by an LLM that saves you
 - Adding images using their content
 - Adding text overlays 
 - OpenAI Compatibility for LLM
-- Add shapes 
+- Add shapes
+- Color Picker Eyedrop
 - Hierarchical Completion for small LLMs
 - Add a segue/slide
 - Denoise the audio/video
