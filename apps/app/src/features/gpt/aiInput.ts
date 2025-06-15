@@ -13,6 +13,7 @@ import {
   addSlideElement,
   addElement,
   exportVideo,
+  addAutoCaption
 } from "../../../reponseHandlers";
 import { addElementAbs } from "../../../reponseHandlers/element_handlers";
 
@@ -179,7 +180,6 @@ export class AiInput extends LitElement {
           files: AssetList.fileList || [],
           current_directory: AssetList.nowDirectory,
         };
-        this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
         chatLLMState.addList({
           from: "user",
@@ -194,11 +194,19 @@ export class AiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+                
+                const chatLLMState = chatLLMStore.getState();
                 chatLLMState.addList({
-                  from: "system",
+                  from: "agent",
                   text: response.text,
                   timestamp: new Date().toISOString(),
                 });
+                console.log("updated llmstate", chatLLMState.list);
+                // const chatLLMSidebar = 
+                // this.uiState= uiStore.getState();
+                // this.uiState.setThinking();
+                console.log(response);
+
                 
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);
@@ -210,19 +218,31 @@ export class AiInput extends LitElement {
                   addElement(response.params);
                 } else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
-                } else if (response.tool_name == "super_resolution") {
-                  console.log(response.data);
-                  renderNewImage(response.data.absolute_path, true);
-                } else if (response.tool_name == "remove_background") {
-                  console.log(response.data);
-                  renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "potrait_effect") {
-                  console.log(response.data);
-                  renderNewImage(response.data.absolute_path);
+                } else if (response.tool_name == "make_super_res") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path, true);
+                } else if (response.tool_name == "image_bg_remove") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path);
+                } else if (response.tool_name == "add_portrait_effect" || response.tool_name == "add_potrait_effect") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path);
                 } else if (response.tool_name == "color_grading") {
-                  console.log(response.data);
-                  renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "add_file_classifier") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path);
+                }else if (response.tool_name == "denoise") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path);
+                } 
+                else if (response.tool_name == "auto_caption") {
+                  console.log(response.params);
+                  addAutoCaption(response.params.absolute_path);
+                }  
+                else if (response.tool_name == "text_to_speech") {
+                  console.log(response.params);
+                  addElement(response.params);
+                }  
+                else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);
                   // simply adds top result to the timeline
                   const myResult = {
@@ -231,7 +251,7 @@ export class AiInput extends LitElement {
                   console.log(myResult);
                   addElementAbs(myResult);
                 } else if (response.tool_name == "export") {
-                  console.log(response.data);
+                  console.log(response.params);
                   exportVideo(response.params);
                 } else {
                   console.log("Unknown tool:", response.tool_name);
@@ -242,7 +262,6 @@ export class AiInput extends LitElement {
                 console.log("unset complete");
               })
               .catch((error) => {
-
                 this.uiState = uiStore.getState();
                 this.uiState.unsetThinking();
                 console.error("Error getting the response:", error);

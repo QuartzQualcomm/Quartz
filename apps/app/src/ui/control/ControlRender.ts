@@ -226,7 +226,7 @@ export class ControlRender extends LitElement {
           type="number"
           class="form-control bg-default text-light"
           placeholder=""
-          value="5000"
+          value="48000"
         />
         <span class="input-group-text bg-default text-light" id="basic-addon2"
           >${this.lc.t("setting.bitrate_unit")}</span
@@ -252,7 +252,7 @@ export class ControlRender extends LitElement {
             type="radio"
             name="inputCheckBitrate"
             id="bitrate_high"
-            value="5000"
+            value="48000"
             checked
           />
           <label class="form-check-label">높음</label>

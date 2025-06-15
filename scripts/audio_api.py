@@ -1,622 +1,236 @@
 import os
-import uuid
-from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+import tempfile
 import subprocess
-import shutil
+from pathlib import Path
 
-from fastapi import UploadFile, File, HTTPException, APIRouter
-from pydantic import BaseModel
-import numpy as np
+from fastapi import APIRouter, HTTPException
 
-# import soundfile as sf
-
-from models.audio import (
-    text_to_speech,
-    remove_noise,
-    transcribe_audio_to_srt,
-    transcribe_audio_to_text,
-    TARGET_SAMPLE_RATE,
-    DEFAULT_CHUNK_DURATION,
-    WHISPER_SAMPLE_RATE,
+from models.audio import transcribe_audio, bark_text_to_speech
+from data_models import (
+    AudioTranscriptionRequest,
+    AudioTranscriptionResponse,
+    VideoRequest,
+    VideoResponse,
 )
+from data_models import TextToSpeechRequest, TextToSpeechResponse
+from audio_utils import process_media_file, remove_noise
 
-# Create router
 router = APIRouter()
 
 
-# # Request models
-# class TextToSpeechRequest(BaseModel):
-#     text: str
-#     speaker: str = "v2/en_speaker_6"
-#     output_path: Optional[str] = None
-
-
-# class TranscriptionRequest(BaseModel):
-#     output_format: str = "srt"  # "srt" or "text"
-#     chunk_duration: float = 30.0
-#     target_sample_rate: int = 16000
-
-
-# # Supported video extensions for processing
-# VIDEO_EXTS = [".mp4"]
-
-
-# def _validate_audio_file(file: UploadFile) -> None:
-#     """
-#     Validate uploaded audio file type and size constraints.
-
-#     Args:
-#         file: FastAPI uploaded file object
-
-#     Raises:
-#         HTTPException: If file validation fails
-#     """
-#     # Check if file exists
-#     if not file:
-#         raise HTTPException(status_code=400, detail="No file provided")
-
-#     # Check file extension
-#     file_ext = Path(file.filename).suffix.lower()
-#     if file_ext not in [".wav", ".mp3", ".m4a", ".ogg", ".flac"]:
-#         raise HTTPException(
-#             status_code=400,
-#             detail=f"Unsupported file format. Supported formats: WAV, MP3, M4A, OGG, FLAC",
-#         )
-
-#     # Check file size (max 50MB)
-#     if file.size and file.size > 50 * 1024 * 1024:  # 50MB in bytes
-#         raise HTTPException(
-#             status_code=400, detail="File too large. Maximum size is 50MB"
-#         )
-
-
-# def _save_processed_audio(
-#     audio_array: np.ndarray, filename: str, sample_rate: int
-# ) -> str:
-#     """
-#     Save processed audio array to assets/public directory.
-
-#     Args:
-#         audio_array: Processed audio as numpy array
-#         filename: Target filename for saving
-#         sample_rate: Audio sample rate
-
-#     Returns:
-#         Relative path to saved file
-#     """
-#     output_dir = Path("assets/public")
-#     output_dir.mkdir(parents=True, exist_ok=True)
-#     output_path = output_dir / filename
-#     sf.write(output_path, audio_array, sample_rate)
-#     return str(output_path)
-
-
-# def _generate_unique_filename(original_filename: str, prefix: str = "audio") -> str:
-#     """
-#     Generate unique filename with UUID prefix to prevent conflicts.
-
-#     Args:
-#         original_filename: Original uploaded filename
-#         prefix: Prefix for the filename
-
-#     Returns:
-#         Unique filename with UUID prefix
-#     """
-#     file_ext = Path(original_filename).suffix
-#     unique_id = str(uuid.uuid4())[:8]
-#     return f"{prefix}_{unique_id}{file_ext}"
-
-
-# async def _process_audio_upload(file: UploadFile) -> Tuple[np.ndarray, int]:
-#     """
-#     Process uploaded file and convert to numpy array.
-
-#     Args:
-#         file: FastAPI uploaded file object
-
-#     Returns:
-#         Tuple of (audio data as numpy array, sample rate)
-
-#     Raises:
-#         HTTPException: If audio processing fails
-#     """
-#     try:
-#         # Save uploaded file temporarily
-#         temp_path = f"temp_{file.filename}"
-#         with open(temp_path, "wb") as f:
-#             f.write(await file.read())
-
-#         # Load audio file
-#         audio_data, sample_rate = sf.read(temp_path)
-
-#         # Clean up temporary file
-#         os.remove(temp_path)
-
-#         return audio_data, sample_rate
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=f"Invalid audio file: {str(e)}")
-
-
-# async def _save_upload_to_temp(file: UploadFile, suffix: str) -> str:
-#     """
-#     Save uploaded file to a temporary path with a unique suffix.
-#     Returns the temporary file path.
-#     """
-#     temp_filename = f"temp_{suffix}_{uuid.uuid4().hex[:8]}{Path(file.filename).suffix}"
-#     with open(temp_filename, "wb") as f:
-#         f.write(await file.read())
-#     return temp_filename
-
-
-# def _extract_audio_from_video(
-#     video_path: str, audio_path: str, sample_rate: int = 48000
-# ) -> None:
-#     """
-#     Extract audio track from video using ffmpeg.
-#     """
-#     # -vn disable video, pcm_s16le for WAV, set sample rate and mono
-#     subprocess.run(
-#         [
-#             "ffmpeg",
-#             "-y",
-#             "-i",
-#             video_path,
-#             "-vn",
-#             "-acodec",
-#             "pcm_s16le",
-#             "-ar",
-#             str(sample_rate),
-#             "-ac",
-#             "1",
-#             audio_path,
-#         ],
-#         check=True,
-#     )
-
-
-# @router.post("/api/audio/text-to-speech")
-# async def api_audio_text_to_speech(request: TextToSpeechRequest) -> Dict[str, Any]:
-#     """
-#     Convert text to speech using Bark.
-
-#     Args:
-#         request: TextToSpeechRequest object containing:
-#             - text: Text to convert to speech
-#             - speaker: Speaker voice to use (default: v2/en_speaker_6)
-#             - output_path: Optional path to save the audio file
-
-#     Returns:
-#         JSON object containing download link to generated audio
-
-#     Raises:
-#         HTTPException: If text-to-speech processing fails
-#     """
-#     try:
-#         # Generate audio using text-to-speech
-#         audio_array = text_to_speech(request.text, speaker=request.speaker)
-
-#         # Generate unique filename and save processed audio
-#         unique_filename = _generate_unique_filename("tts_output.wav", prefix="tts")
-#         saved_path = _save_processed_audio(
-#             audio_array, unique_filename, 24000
-#         )  # Bark uses 24kHz
-
-#         # Return absolute path to saved file
-#         abs_path = str(Path(saved_path).resolve())
-#         return {"link": abs_path}
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Text-to-speech failed: {str(e)}")
-
-
-# @router.post("/api/audio/remove-noise")
-# async def api_audio_remove_noise(file: UploadFile = File(...)) -> Dict[str, Any]:
-#     """
-#     Remove noise from uploaded audio file.
-
-#     Args:
-#         file: Uploaded audio file (WAV, MP3, etc.)
-
-#     Returns:
-#         JSON object containing download link to processed audio
-
-#     Raises:
-#         HTTPException: If file validation or processing fails
-#     """
-#     try:
-#         # Check for video input
-#         ext = Path(file.filename).suffix.lower()
-#         if ext in VIDEO_EXTS:
-#             link = await _remove_noise_from_video(file)
-#             return {"link": link}
-
-#         # Validate uploaded file format
-#         _validate_audio_file(file)
-
-#         # Process uploaded file to numpy array
-#         audio_data, sample_rate = await _process_audio_upload(file)
-
-#         # Apply noise removal
-#         enhanced_audio = remove_noise(audio_data)
-
-#         # Generate unique filename and save processed audio
-#         unique_filename = _generate_unique_filename(file.filename, prefix="denoised")
-#         saved_path = _save_processed_audio(enhanced_audio, unique_filename, sample_rate)
-
-#         # Return absolute path to saved file
-#         abs_path = str(Path(saved_path).resolve())
-#         return {"link": abs_path}
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
-
-
-# @router.post("/api/audio/transcribe")
-# async def api_audio_transcribe(
-#     file: UploadFile = File(...), request: TranscriptionRequest = None
-# ) -> Dict[str, Any]:
-#     """
-#     Transcribe audio file to text or SRT format.
-
-#     Args:
-#         file: Uploaded audio file (WAV, MP3, etc.)
-#         request: TranscriptionRequest object containing:
-#             - output_format: Output format ("srt" or "text")
-#             - chunk_duration: Duration of each audio chunk in seconds
-#             - target_sample_rate: Target sample rate for transcription
-
-#     Returns:
-#         JSON object containing transcription result or download link
-
-#     Raises:
-#         HTTPException: If file validation or processing fails
-#     """
-#     try:
-#         # Check for video input
-#         ext = Path(file.filename).suffix.lower()
-#         if ext in VIDEO_EXTS:
-#             return await _transcribe_video(file, request)
-
-#         # Validate uploaded file format
-#         _validate_audio_file(file)
-
-#         # Process uploaded file to numpy array
-#         audio_data, sample_rate = await _process_audio_upload(file)
-
-#         # Save audio data temporarily with .wav extension for processing
-#         temp_path = f"temp_{Path(file.filename).stem}.wav"
-#         sf.write(temp_path, audio_data, sample_rate)
-
-#         try:
-#             # Transcribe to text if requested
-#             if request and getattr(request, "output_format", "") == "text":
-#                 tgt_sr = (
-#                     request.target_sample_rate
-#                     if getattr(request, "target_sample_rate", None)
-#                     else WHISPER_SAMPLE_RATE
-#                 )
-#                 transcript = transcribe_audio_to_text(
-#                     temp_path, target_sample_rate=tgt_sr
-#                 )
-#                 return {"text": transcript}
-#             # Transcribe to SRT
-#             chunk_dur = (
-#                 request.chunk_duration
-#                 if request and getattr(request, "chunk_duration", None)
-#                 else DEFAULT_CHUNK_DURATION
-#             )  # now defaults to 5s
-#             tgt_sr = (
-#                 request.target_sample_rate
-#                 if request and getattr(request, "target_sample_rate", None)
-#                 else WHISPER_SAMPLE_RATE
-#             )
-#             srt_path = transcribe_audio_to_srt(
-#                 temp_path, chunk_duration=chunk_dur, target_sample_rate=tgt_sr
-#             )
-
-#             # Generate unique filename for SRT with proper extension
-#             unique_filename = f"transcript_{uuid.uuid4().hex[:8]}.srt"
-#             output_path = Path("assets/public") / unique_filename
-#             output_path.parent.mkdir(parents=True, exist_ok=True)
-
-#             # Copy SRT file to public directory
-#             shutil.copy2(srt_path, output_path)
-
-#             # Clean up temporary SRT file
-#             os.remove(srt_path)
-
-#             # Return absolute path to SRT file
-#             abs_path = str(output_path.resolve())
-#             return {"link": abs_path}
-
-#         finally:
-#             # Clean up temporary audio file
-#             if os.path.exists(temp_path):
-#                 os.remove(temp_path)
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
-
-
-# @router.post("/api/audio/remove-noise-video")
-# async def api_audio_remove_noise_video(file: UploadFile = File(...)) -> Dict[str, Any]:
-#     """
-#     Remove noise from uploaded video file.
-
-#     Args:
-#         file: Uploaded video file (MP4, etc.)
-
-#     Returns:
-#         JSON object containing download link to processed video
-
-#     Raises:
-#         HTTPException: If file validation or processing fails
-#     """
-#     try:
-#         # Validate uploaded file format
-#         file_ext = Path(file.filename).suffix.lower()
-#         if file_ext not in VIDEO_EXTS:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail=f"Unsupported video format. Supported format: MP4",
-#             )
-
-#         # Handle noise removal for a video file: extract audio, apply noise removal, recombine.
-#         # Save uploaded video and extract audio
-#         temp_video = await _save_upload_to_temp(file, "video")
-#         temp_audio = f"{Path(temp_video).stem}_audio.wav"
-#         _extract_audio_from_video(temp_video, temp_audio)
-
-#         # Apply noise removal on extracted audio
-#         enhanced_audio = remove_noise(temp_audio)
-
-#         # Save enhanced audio to temp file
-#         temp_enhanced = f"{Path(temp_video).stem}_enhanced.wav"
-#         sf.write(temp_enhanced, enhanced_audio, 48000)
-
-#         # Recombine enhanced audio with original video (strip original audio)
-#         unique_video_name = f"denoised_{uuid.uuid4().hex[:8]}.mp4"
-#         output_path = Path("assets/public") / unique_video_name
-#         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-#         subprocess.run(
-#             [
-#                 "ffmpeg",
-#                 "-y",
-#                 "-i",
-#                 temp_video,
-#                 "-i",
-#                 temp_enhanced,
-#                 "-c:v",
-#                 "copy",
-#                 "-map",
-#                 "0:v:0",
-#                 "-map",
-#                 "1:a:0",
-#                 "-shortest",
-#                 str(output_path),
-#             ],
-#             check=True,
-#         )
-
-#         # Cleanup temporary files
-#         os.remove(temp_video)
-#         os.remove(temp_audio)
-#         os.remove(temp_enhanced)
-
-#         # Return absolute path to processed video
-#         abs_path = str(output_path.resolve())
-#         return {"link": abs_path}
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500, detail=f"Video processing failed: {str(e)}"
-#         )
-
-
-# @router.post("/api/audio/transcribe-video")
-# async def api_audio_transcribe_video(
-#     file: UploadFile = File(...), request: TranscriptionRequest = None
-# ) -> Dict[str, Any]:
-#     """
-#     Transcribe audio from an uploaded video file to text or SRT format.
-
-#     Args:
-#         file: Uploaded video file (MP4, etc.)
-#         request: TranscriptionRequest object containing:
-#             - output_format: Output format ("srt" or "text")
-#             - chunk_duration: Duration of each audio chunk in seconds
-#             - target_sample_rate: Target sample rate for transcription
-
-#     Returns:
-#         JSON object containing transcription result or download link
-
-#     Raises:
-#         HTTPException: If file validation or processing fails
-#     """
-#     try:
-#         # Validate uploaded file format
-#         file_ext = Path(file.filename).suffix.lower()
-#         if file_ext not in VIDEO_EXTS:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail=f"Unsupported video format. Supported format: MP4",
-#             )
-
-#         # Handle transcription for a video file: extract audio, transcribe, return result.
-#         # Save uploaded video and extract audio
-#         temp_video = await _save_upload_to_temp(file, "video")
-#         temp_audio = f"{Path(temp_video).stem}_audio.wav"
-#         # Determine extraction sample rate, fallback if no request provided
-#         ext_sr = (
-#             request.target_sample_rate
-#             if request and getattr(request, "target_sample_rate", None)
-#             else WHISPER_SAMPLE_RATE
-#         )
-#         _extract_audio_from_video(temp_video, temp_audio, sample_rate=ext_sr)
-
-#         try:
-#             # Transcribe to text if requested
-#             if request and getattr(request, "output_format", "") == "text":
-#                 tgt_sr = (
-#                     request.target_sample_rate
-#                     if getattr(request, "target_sample_rate", None)
-#                     else WHISPER_SAMPLE_RATE
-#                 )
-#                 transcript = transcribe_audio_to_text(
-#                     temp_audio, target_sample_rate=tgt_sr
-#                 )
-#                 return {"text": transcript}
-#             # Otherwise generate SRT
-#             chunk_dur = (
-#                 request.chunk_duration
-#                 if request and getattr(request, "chunk_duration", None)
-#                 else DEFAULT_CHUNK_DURATION
-#             )  # now defaults to 5s
-#             tgt_sr = (
-#                 request.target_sample_rate
-#                 if request and getattr(request, "target_sample_rate", None)
-#                 else WHISPER_SAMPLE_RATE
-#             )
-#             srt_path = transcribe_audio_to_srt(
-#                 temp_audio, chunk_duration=chunk_dur, target_sample_rate=tgt_sr
-#             )
-#             unique_srt = f"transcript_{uuid.uuid4().hex[:8]}.srt"
-#             public_dir = Path("assets/public")
-#             public_dir.mkdir(parents=True, exist_ok=True)
-#             shutil.copy2(srt_path, public_dir / unique_srt)
-#             os.remove(srt_path)
-#             # Return absolute path to SRT file
-#             abs_path = str((public_dir / unique_srt).resolve())
-#             return {"link": abs_path}
-#         finally:
-#             # Cleanup temporary files
-#             for fpath in [temp_video, temp_audio]:
-#                 try:
-#                     os.remove(fpath)
-#                 except OSError:
-#                     pass
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500, detail=f"Video transcription failed: {str(e)}"
-#         )
-
-
-# target_sr = TARGET_SAMPLE_RATE  # import from models.audio
-
-
-# async def _remove_noise_from_video(file: UploadFile) -> str:
-#     """
-#     Extract audio from video, remove noise, recombine, and return public URL.
-#     """
-#     temp_video = await _save_upload_to_temp(file, "video")
-#     temp_audio = f"{Path(temp_video).stem}_audio.wav"
-#     _extract_audio_from_video(temp_video, temp_audio, sample_rate=TARGET_SAMPLE_RATE)
-
-#     # Apply noise removal
-#     enhanced_audio = remove_noise(temp_audio)
-
-#     # Save enhanced audio
-#     temp_enhanced = f"{Path(temp_video).stem}_enhanced.wav"
-#     sf.write(temp_enhanced, enhanced_audio, TARGET_SAMPLE_RATE)
-
-#     # Recombine enhanced audio with original video
-#     unique_name = f"denoised_{uuid.uuid4().hex[:8]}.mp4"
-#     public_dir = Path("assets/public")
-#     public_dir.mkdir(parents=True, exist_ok=True)
-#     output_video = public_dir / unique_name
-#     subprocess.run(
-#         [
-#             "ffmpeg",
-#             "-y",
-#             "-i",
-#             temp_video,
-#             "-i",
-#             temp_enhanced,
-#             "-c:v",
-#             "copy",
-#             "-map",
-#             "0:v:0",
-#             "-map",
-#             "1:a:0",
-#             "-shortest",
-#             str(output_video),
-#         ],
-#         check=True,
-#     )
-
-#     # Cleanup temp files
-#     for fpath in [temp_video, temp_audio, temp_enhanced]:
-#         try:
-#             os.remove(fpath)
-#         except OSError:
-#             pass
-
-#     # Return absolute path to processed video
-#     return str(output_video.resolve())
-
-
-# async def _transcribe_video(
-#     file: UploadFile, request: TranscriptionRequest
-# ) -> Dict[str, Any]:
-#     """
-#     Extract audio from video, transcribe, and return text or SRT link.
-#     """
-#     temp_video = await _save_upload_to_temp(file, "video")
-#     temp_audio = f"{Path(temp_video).stem}_audio.wav"
-#     # Determine extraction sample rate, fallback if no request provided
-#     ext_sr = (
-#         request.target_sample_rate
-#         if request and getattr(request, "target_sample_rate", None)
-#         else WHISPER_SAMPLE_RATE
-#     )
-#     _extract_audio_from_video(temp_video, temp_audio, sample_rate=ext_sr)
-
-#     try:
-#         # Transcribe to text if requested
-#         if request and getattr(request, "output_format", "") == "text":
-#             tgt_sr = (
-#                 request.target_sample_rate
-#                 if getattr(request, "target_sample_rate", None)
-#                 else WHISPER_SAMPLE_RATE
-#             )
-#             transcript = transcribe_audio_to_text(temp_audio, target_sample_rate=tgt_sr)
-#             return {"text": transcript}
-#         # Transcribe to SRT
-#         chunk_dur = (
-#             request.chunk_duration
-#             if request and getattr(request, "chunk_duration", None)
-#             else DEFAULT_CHUNK_DURATION
-#         )  # now defaults to 5s
-#         tgt_sr = (
-#             request.target_sample_rate
-#             if request and getattr(request, "target_sample_rate", None)
-#             else WHISPER_SAMPLE_RATE
-#         )
-#         srt_path = transcribe_audio_to_srt(
-#             temp_audio, chunk_duration=chunk_dur, target_sample_rate=tgt_sr
-#         )
-#         unique_srt = f"transcript_{uuid.uuid4().hex[:8]}.srt"
-#         public_dir = Path("assets/public")
-#         public_dir.mkdir(parents=True, exist_ok=True)
-#         shutil.copy2(srt_path, public_dir / unique_srt)
-#         os.remove(srt_path)
-#         # Return absolute path to SRT file
-#         abs_path = str((public_dir / unique_srt).resolve())
-#         return {"link": abs_path}
-#     finally:
-#         for fpath in [temp_video, temp_audio]:
-#             try:
-#                 os.remove(fpath)
-#             except OSError:
-#                 pass
+def _transcribe_audio_wrapper(audio_path: str, model: str = None) -> dict:
+    """
+    Wrapper function for transcribe_audio to be used with process_media_file
+    """
+    try:
+        srt_content = transcribe_audio(audio_path, model)
+
+        # Generate unique filename and save
+        original_name = Path(audio_path).stem
+        transcription_filename = f"transcription_{original_name}.srt"
+
+        # Ensure absolute path for assets/public directory
+        public_dir = Path("assets/public").resolve()
+        public_dir.mkdir(parents=True, exist_ok=True)
+
+        transcription_path = public_dir / transcription_filename
+        transcription_path.write_text(srt_content, encoding="utf-8")
+
+        # Simple duration estimation (fallback)
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-i",
+                    audio_path,
+                    "-show_entries",
+                    "format=duration",
+                    "-v",
+                    "quiet",
+                    "-of",
+                    "csv=p=0",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            duration = float(result.stdout.strip()) if result.returncode == 0 else 0.0
+        except:
+            duration = 0.0
+
+        return {
+            "success": True,
+            "data": {
+                "link": f"/api/assets/public/{transcription_filename}",
+                "absolute_path": str(transcription_path.resolve()),
+                "content": (
+                    srt_content[:500] + "..." if len(srt_content) > 500 else srt_content
+                ),
+                "language": "auto-detected",
+                "duration": duration,
+            },
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Transcription failed: {str(e)}"}
+
+
+def _remove_noise_wrapper(audio_path: str) -> dict:
+    """
+    Wrapper function for noise removal to be used with process_media_file
+    """
+    try:
+        # Process the audio
+        processed_audio_path = remove_noise(audio_path)
+
+        # Move to public directory
+        public_dir = Path("assets/public").resolve()
+        public_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        original_name = Path(audio_path).stem
+        output_filename = f"denoised_{original_name}.wav"
+        output_path = public_dir / output_filename
+
+        # Move the processed file to public directory
+        os.rename(processed_audio_path, output_path)
+
+        # Get absolute paths
+        abs_output_path = str(output_path.resolve())
+        abs_original_path = str(Path(audio_path).resolve())
+
+        return {
+            "success": True,
+            "data": {
+                "audio_path": abs_output_path,
+                "link": f"/api/assets/public/{output_filename}",
+                "absolute_path": abs_output_path,
+                "original_file_absolute_path": abs_original_path,
+            },
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Noise removal failed: {str(e)}"}
+
+
+@router.post("/api/audio/transcribe")
+async def api_audio_transcribe(request):
+    """
+    Transcribe audio or video file using Whisper with chunked processing.
+
+    Uses config.yaml settings for model and chunk duration.
+    Supports both audio and video files - if video is provided, audio will be extracted first.
+    """
+    try:
+        # Validate file path exists
+        if not os.path.exists(request.audio_path):
+            raise HTTPException(
+                status_code=404, detail=f"File not found: {request.audio_path}"
+            )
+
+        # Use model from request if specified, otherwise let transcribe_audio use config
+        model = request.model if hasattr(request, "model") and request.model else None
+
+        # Process the media file using our utility
+        result = process_media_file(
+            request.audio_path, _transcribe_audio_wrapper, model
+        )
+
+        # Add original file absolute path to response
+        if result.get("success"):
+            result["data"]["original_file_absolute_path"] = str(
+                Path(request.audio_path).resolve()
+            )
+
+        return result
+
+    except HTTPException as e:
+        return {"success": False, "error": e.detail}
+    except Exception as e:
+        return {"success": False, "error": f"Transcription failed: {str(e)}"}
+
+
+@router.post("/api/audio/remove-noise")
+async def api_remove_noise(request: AudioTranscriptionRequest):
+    """
+    Remove background noise from audio or video file.
+
+    Supports both audio and video files - if video is provided, audio will be extracted first,
+    processed, and then combined back with the original video.
+    """
+    try:
+        # Validate file path exists
+        if not os.path.exists(request.audio_path):
+            raise HTTPException(
+                status_code=404, detail=f"File not found: {request.audio_path}"
+            )
+
+        # Process the media file using our utility
+        result = process_media_file(request.audio_path, _remove_noise_wrapper)
+
+        # Add original file absolute path to response if not already present
+        if (
+            result.get("success")
+            and "original_file_absolute_path" not in result["data"]
+        ):
+            result["data"]["original_file_absolute_path"] = str(
+                Path(request.audio_path).resolve()
+            )
+
+        return result
+
+    except HTTPException as e:
+        return {"success": False, "error": e.detail}
+    except Exception as e:
+        return {"success": False, "error": f"Noise removal failed: {str(e)}"}
+
+
+@router.post("/api/audio/text-to-speech")
+async def api_text_to_speech(request: TextToSpeechRequest):
+    """
+    Generate speech audio from input text using Bark by Suno.
+    """
+    try:
+        public_dir = Path("assets/public").resolve()
+        public_dir.mkdir(parents=True, exist_ok=True)
+        # Use default preset if not provided
+        voice_preset = request.voice_preset or "v2/en_speaker_6"
+        filename = f"tts_{hash(request.text)}_{voice_preset.replace('/', '_')}.wav"
+        output_path = public_dir / filename
+
+        # Generate audio
+        result_path = bark_text_to_speech(request.text, str(output_path), voice_preset)
+        abs_path = str(Path(result_path).resolve())
+        link = f"/api/assets/public/{filename}"
+        response = TextToSpeechResponse(
+            link=link,
+            absolute_path=abs_path,
+            text=request.text,
+            voice_preset=voice_preset,
+        )
+        return {"success": True, "data": response}
+    except Exception as e:
+        return {"success": False, "error": f"Text-to-speech failed: {str(e)}"}
+
+
+@router.post("/api/video/denoise")
+async def api_video_denoise(request: VideoRequest):
+    """
+    Remove background noise from video audio and return processed video path.
+    """
+    try:
+        from models.audio import remove_noise_from_video
+
+        # Validate video path
+        if not os.path.exists(request.video_path):
+            raise HTTPException(
+                status_code=404, detail=f"Video file not found: {request.video_path}"
+            )
+
+        output_path = remove_noise_from_video(request.video_path)
+        link = f"/api/assets/public/{Path(output_path).name}"
+        response = VideoResponse(
+            link=link, absolute_path=str(Path(output_path).resolve())
+        )
+        return {"success": True, "data": response}
+    except HTTPException as e:
+        return {"success": False, "error": e.detail}
+    except Exception as e:
+        return {"success": False, "error": f"Denoise failed: {str(e)}"}

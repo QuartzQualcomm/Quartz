@@ -21,7 +21,7 @@ export async function exportVideo(data) {
         const optionsWithoutDestination = {
             ...renderOptionStore.getState().options,
             videoDuration: renderOptionStore.getState().options.duration,
-            videoBitrate: Number(document.querySelector("#videoBitrate")?.value || 5000),
+            videoBitrate: Number(document.querySelector("#videoBitrate")?.value || 48000),
         };
 
         const elementRenderers = {
@@ -71,7 +71,7 @@ export async function exportVideo(data) {
             const previewSizeH = renderOptionState.previewSize.h;
             const previewSizeW = renderOptionState.previewSize.w;
             const backgroundColor = renderOptionState.backgroundColor;
-            const videoBitrate = Number(document.querySelector("#videoBitrate")?.value || 5000);
+            const videoBitrate = Number(document.querySelector("#videoBitrate")?.value || 48000);
             const uuidKey = uuidv4();
 
             if (projectFolder === "") {

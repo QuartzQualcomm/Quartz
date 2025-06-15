@@ -175,16 +175,6 @@ export class Control extends LitElement {
                 <span class="material-symbols-outlined"> text_fields</span>
               </button>
 
-              <button
-                class="btn-nav"
-                data-bs-toggle="pill"
-                data-bs-target="#nav-filter"
-                type="button"
-                role="tab"
-                aria-selected="false"
-              >
-                <span class="material-symbols-outlined"> library_books</span>
-              </button>
 
               <button
                 class="btn-nav"
@@ -195,18 +185,7 @@ export class Control extends LitElement {
                 aria-selected="false"
               >
                 <span class="material-symbols-outlined"> page_info</span>
-              </button>
-
-              <button
-                class="btn-nav"
-                data-bs-toggle="pill"
-                data-bs-target="#nav-option"
-                type="button"
-                role="tab"
-                aria-selected="false"
-              >
-                <span class="material-symbols-outlined"> extension</span>
-              </button>
+              </button>          
 
               <button
                 class="btn-nav"

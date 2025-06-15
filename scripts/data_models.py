@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 class VideoStabilizationRequest(BaseModel):
@@ -11,7 +11,6 @@ class VideoStabilizationRequest(BaseModel):
         time_stamp: List containing start and end timestamps in seconds [start, end]
     """
     video_path: str
-    time_stamp: List[float]
 
 
 class VideoStabilizationResponse(BaseModel):
@@ -113,3 +112,69 @@ class ColorTransferResponse(ImageProcessingResponse):
 class PortraitEffectResponse(ImageProcessingResponse):
     """Response model for portrait effect endpoint."""
     pass
+
+
+# Audio processing models
+class AudioTranscriptionRequest(BaseModel):
+    """
+    Request model for audio transcription endpoint.
+    
+    Attributes:
+        audio_path: Absolute path to the input audio file
+        model: Whisper model size ("tiny", "base", "small", "medium", "large")
+        output_format: Output format ("srt", "txt", "json")
+        language: Target language for transcription ("auto" for auto-detection)
+        task: Task type ("transcribe" or "translate")
+    """
+    audio_path: str
+    model: str = "base"
+    output_format: str = "srt"
+    language: str = "auto"
+    task: str = "transcribe"
+
+
+class AudioTranscriptionResponse(BaseModel):
+    """
+    Response model for audio transcription endpoint.
+    
+    Attributes:
+        link: URL path to access the transcription file
+        absolute_path: Absolute file system path to the transcription file
+        content: Transcription content (for preview)
+        language: Detected language of the audio
+        duration: Audio duration in seconds
+    """
+    link: str
+    absolute_path: str
+    content: str
+    language: str
+    duration: float
+
+
+# Text-to-speech models
+class TextToSpeechRequest(BaseModel):
+    """
+    Request model for text-to-speech endpoint.
+
+    Attributes:
+        text: Text to convert to speech
+        voice_preset: Voice preset identifier (optional)
+    """
+    text: str
+    voice_preset: Optional[str] = "v2/en_speaker_6"
+
+
+class TextToSpeechResponse(BaseModel):
+    """
+    Response model for text-to-speech endpoint.
+
+    Attributes:
+        link: URL path to access the generated audio file
+        absolute_path: Absolute file system path to the generated file
+        text: Original input text
+        voice_preset: Voice preset used
+    """
+    link: str
+    absolute_path: str
+    text: str
+    voice_preset: str

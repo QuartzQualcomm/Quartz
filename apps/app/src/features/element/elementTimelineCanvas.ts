@@ -1090,10 +1090,10 @@ export class elementTimelineCanvas extends LitElement {
         onClick: `document.querySelector('timeline-ui').handleCutClick('${this.targetIdDuringRightClick}')`,
         itemName: "cut",
       },
-      {
-        onClick: "document.querySelector('element-timeline-canvas).stabilise()",
-        itemName: "stabilise",
-      },
+      // {
+      //   onClick: "document.querySelector('element-timeline-canvas).stabilise()",
+      //   itemName: "stabilise",
+      // },
       // {
       //   onClick:
       //     "document.querySelector('element-timeline-canvas').removeBackground()",
@@ -1111,15 +1111,15 @@ export class elementTimelineCanvas extends LitElement {
         onClick: `document.querySelector('timeline-ui').handleCutClick('${this.targetIdDuringRightClick}')`,
         itemName: "cut",
       },
-      {
-        onClick: `document.querySelector('element-timeline-canvas').potraitBlur()`,
-        itemName: "add potrait effect",
-      },
-      {
-        onClick:
-          "document.querySelector('element-timeline-canvas').removeBackground()",
-        itemName: "remove background",
-      },
+      // {
+      //   onClick: `document.querySelector('element-timeline-canvas').potraitBlur()`,
+      //   itemName: "add potrait effect",
+      // },
+      // {
+      //   onClick:
+      //     "document.querySelector('element-timeline-canvas').removeBackground()",
+      //   itemName: "remove background",
+      // },
     ];
 
     let menuDropDownElements =

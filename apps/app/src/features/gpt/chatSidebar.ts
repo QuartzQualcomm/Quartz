@@ -29,6 +29,7 @@ export class ChatSidebar extends LitElement {
   createRenderRoot() {
     chatLLMStore.subscribe((state) => {
       this.chatList = state.list;
+      this.requestUpdate();
     });
 
     uiStore.subscribe((state) => {
