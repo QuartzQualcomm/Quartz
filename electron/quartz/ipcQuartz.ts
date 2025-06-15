@@ -31,7 +31,7 @@ export const ipcQuartz = {
       return response.data.data;
     } catch (error) {
       console.error("Error transcribing audio:");
-      // throw error;
+      throw error;
     }
   },
   directToolRemoveBg: async (_: any, imagePath: any) => {
