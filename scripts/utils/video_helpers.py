@@ -4,7 +4,6 @@ import uuid
 import logging
 import cv2
 import numpy as np
-from vidstab import VidStab
 from typing import Tuple
 import sys
 from pathlib import Path
@@ -14,6 +13,7 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.logging import RichHandler
+import shutil
 
 # Add the project root to the Python path to import from models
 project_root = Path(__file__).parent.parent
@@ -133,9 +133,9 @@ def convert_to_mov(input_path: str, output_path: str) -> bool:
         return False
 
 
-def stabilize_video(input_path: str, output_path: str) -> bool:
+def stabilize_video_ffmpeg(input_path: str, output_path: str) -> bool:
     """
-    Stabilize video using VidStab library with ORB keypoint detection.
+    Stabilize video using FFmpeg's vidstabdetect and vidstabtransform filters.
     
     Args:
         input_path: Path to input video file
@@ -143,101 +143,52 @@ def stabilize_video(input_path: str, output_path: str) -> bool:
     Returns:
         Boolean indicating success/failure
     """
-    console.print(f"[bold magenta]🎯 Stabilizing video: {Path(input_path).name}[/bold magenta]")
-    console.print(f"[cyan]🔍 Method: ORB keypoint detection with reflect border[/cyan]")
+    console.print(f"[bold magenta]🎯 Stabilizing video with FFmpeg: {Path(input_path).name}[/bold magenta]")
     
     try:
-        # Create temp output with .avi extension since VidStab works best with AVI
-        temp_output = output_path.replace('.mov', '_temp.avi')
+        # Step 1: Detect motion vectors
+        transforms_path = "transforms.trf"
+        detect_cmd = [
+            "ffmpeg", "-i", input_path, "-vf", "vidstabdetect=stepsize=6:shakiness=5:accuracy=15:result=" + transforms_path,
+            "-f", "null", "-"
+        ]
+        console.print("[cyan]🔍 Pass 1/2: Detecting motion vectors...[/cyan]")
+        console.print(f"[dim]🔧 Running: {' '.join(detect_cmd)}[/dim]")
         
-        # Initialize VidStab with ORB keypoint detection
-        stabilizer = VidStab(kp_method='ORB')
+        detect_process = subprocess.Popen(detect_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        detect_stdout, detect_stderr = detect_process.communicate()
+
+        if detect_process.returncode != 0:
+            console.print(f"[bold red]❌ FFmpeg motion detection failed.[/bold red]")
+            console.print(f"[dim]{detect_stderr}[/dim]")
+            return False
+
+        # Step 2: Apply stabilization transform
+        transform_cmd = [
+            "ffmpeg", "-i", input_path, "-vf", "vidstabtransform=input=" + transforms_path + ":zoom=0:smoothing=10",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "copy", "-y", output_path
+        ]
+        console.print("[cyan]🔄 Pass 2/2: Applying stabilization transform...[/cyan]")
+        console.print(f"[dim]🔧 Running: {' '.join(transform_cmd)}[/dim]")
+
+        transform_process = subprocess.Popen(transform_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        transform_stdout, transform_stderr = transform_process.communicate()
         
-        # Initialize video capture for frame-by-frame processing
-        vidcap = cv2.VideoCapture(input_path)
-        frame_count = 0
-        
-        frames = []
-        while True:
-            grabbed_frame, frame = vidcap.read()
+        if transform_process.returncode != 0:
+            console.print(f"[bold red]❌ FFmpeg stabilization failed.[/bold red]")
+            console.print(f"[dim]{transform_stderr}[/dim]")
+            return False
             
-            if frame is not None:
-                # Perform any pre-processing of frame before stabilization here
-                pass
-            
-            # Pass frame to stabilizer even if frame is None
-            # stabilized_frame will be an all black frame until iteration 30
-            stabilized_frame = stabilizer.stabilize_frame(input_frame=frame,
-                                                        smoothing_window=30)
-            
-            if stabilized_frame is None:
-                # There are no more frames available to stabilize
-                break
-            
-            # Save stabilized frame to tmp directory with current timestamp
-            if stabilized_frame is not None and frame_count > 30:  # Only save after stabilization kicks in
-                mask = stabilizer.get_mask(stabilized_frame)
-                current_time = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # microseconds to milliseconds
-                frame_filename = f"tmp/{current_time}.jpeg"
-                
-                # Ensure tmp directory exists
-                os.makedirs("tmp", exist_ok=True)
-                
-                # Save the frame
-                if cv2.imwrite(frame_filename, stabilized_frame):
-                    logger.debug(f"[cyan]💾 Saved stabilized frame: {frame_filename}[/cyan]")
-                else:
-                    logger.warning(f"[yellow]⚠️  Failed to save frame: {frame_filename}[/yellow]")
-            
-            frame_count += 1
-        
-        # Clean up video capture
-        vidcap.release()
-        
-        with console.status("[bold green]Running stabilization process (this may take a while)..."):
-            stabilizer.stabilize(
-                input_path=input_path, 
-                output_path=temp_output,
-                border_type='reflect'
-            )
-        
-        # If output should be MOV, convert using FFmpeg
-        if output_path.endswith('.mov') and temp_output != output_path:
-            console.print(f"[cyan]🔄 Converting to MOV format...[/cyan]")
-            
-            cmd = [
-                "ffmpeg", "-i", temp_output, "-c:v", "libx264",
-                "-preset", "medium", "-crf", "23", "-c:a", "aac", "-y", output_path
-            ]
-            console.print(f"[dim]🔧 Running: {' '.join(cmd)}[/dim]")
-            
-            # Stream FFmpeg output
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
-                                     universal_newlines=True, bufsize=1)
-            
-            with console.status("[bold blue]Converting to MOV format..."):
-                for line in process.stdout:
-                    if line.strip():
-                        logger.debug(f"[dim]📺 {line.strip()}[/dim]")
-            
-            process.wait()
-            
-            if process.returncode == 0:
-                # Remove temp file and keep final output
-                os.remove(temp_output)
-                console.print("[green]✅ Successfully converted to MOV format[/green]")
-            else:
-                console.print(f"[yellow]⚠️  MOV conversion failed, keeping AVI format[/yellow]")
-                # Rename temp file to final output if conversion fails
-                os.rename(temp_output, output_path.replace('.mov', '.avi'))
-        
         console.print(f"[bold green]✅ Video stabilized successfully: {Path(output_path).name}[/bold green]")
         return True
-        
+
     except Exception as e:
-        console.print(f"[bold red]❌ Video stabilization failed: {str(e)}[/bold red]")
-        console.print("[yellow]💡 Check if input file exists and is a valid video format[/yellow]")
+        console.print(f"[bold red]💥 Unexpected error during FFmpeg stabilization: {str(e)}[/bold red]")
         return False
+    finally:
+        # Clean up the transforms file
+        if os.path.exists("transforms.trf"):
+            os.remove("transforms.trf")
 
 
 def ensure_directories_exist() -> None:
@@ -292,3 +243,35 @@ def cleanup_temp_files(*file_paths: str) -> None:
             logger.debug(f"[dim]⏭️  File doesn't exist (already cleaned?): {Path(file_path).name}[/dim]")
     
     console.print("[bold green]✅ Cleanup completed[/bold green]")
+
+
+def convert_video_to_24fps(input_path: str, output_path: str) -> bool:
+    """Convert a video to 24 FPS using FFmpeg."""
+    console.print(f"[bold cyan]🔄 Converting {Path(input_path).name} to 24 FPS[/bold cyan]")
+    try:
+        cmd = [
+            "ffmpeg", "-i", input_path, "-r", "24",
+            "-c:v", "libx264", "-c:a", "aac", "-y", output_path
+        ]
+        console.print(f"[dim]🔧 Running: {' '.join(cmd)}[/dim]")
+
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 universal_newlines=True, bufsize=1)
+
+        with console.status("[bold green]Converting to 24 FPS..."):
+            for line in process.stdout:
+                if line.strip():
+                    logger.debug(f"[dim]📺 {line.strip()}[/dim]")
+
+        process.wait()
+
+        if process.returncode == 0:
+            console.print(f"[bold green]✅ Video converted to 24 FPS successfully[/bold green]")
+            return True
+        else:
+            console.print(f"[bold red]❌ FFmpeg 24 FPS conversion failed with return code {process.returncode}[/bold red]")
+            return False
+
+    except Exception as e:
+        console.print(f"[bold red]💥 Unexpected error during 24 FPS conversion: {str(e)}[/bold red]")
+        return False
