@@ -150,6 +150,46 @@ def _combine_srt_chunks(srt_chunks: list) -> str:
     return combined
 
 
+def remove_noise_from_video(video_path: str) -> str:
+    """
+    Remove background noise from video audio using FFmpeg filters and remix with original video.
+
+    Args:
+        video_path: Path to input video file (.mp4)
+    Returns:
+        Path to denoised video file
+    """
+    # Validate input
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+
+    in_path = Path(video_path)
+    out_dir = Path("assets/public").resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    out_name = f"denoised_{in_path.stem}.mp4"
+    out_path = out_dir / out_name
+
+    # FFmpeg filter chain: highpass, lowpass, notch at 60Hz
+    filter_chain = (
+        "highpass=f=200,"
+        "lowpass=f=3000,"
+        "equalizer=f=60:width_type=h:width=20:g=-70"
+    )
+
+    cmd = [
+        "ffmpeg",
+        "-i", str(in_path),
+        "-c:v", "copy",
+        "-af", filter_chain,
+        str(out_path),
+        "-y"
+    ]
+    subprocess.run(cmd, capture_output=True, check=True)
+
+    return str(out_path)
+
+
 if __name__ == "__main__":
     import sys
     
