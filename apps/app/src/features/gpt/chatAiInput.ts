@@ -181,7 +181,7 @@ export class ChatAiInput extends LitElement {
           files: AssetList.fileList || [],
           current_directory: AssetList.nowDirectory
         };
-        this.panelOpen();
+        // this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
         chatLLMState.addList({
           from: "user",
