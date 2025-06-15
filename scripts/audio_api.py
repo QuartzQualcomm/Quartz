@@ -161,18 +161,20 @@ async def api_text_to_speech(request: TextToSpeechRequest):
     try:
         public_dir = Path("assets/public").resolve()
         public_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"tts_{hash(request.text)}_{request.voice_preset.replace('/', '_')}.wav"
+        # Use default preset if not provided
+        voice_preset = request.voice_preset or "v2/en_speaker_6"
+        filename = f"tts_{hash(request.text)}_{voice_preset.replace('/', '_')}.wav"
         output_path = public_dir / filename
 
         # Generate audio
-        result_path = bark_text_to_speech(request.text, str(output_path), request.voice_preset)
+        result_path = bark_text_to_speech(request.text, str(output_path), voice_preset)
         abs_path = str(Path(result_path).resolve())
         link = f"/api/assets/public/{filename}"
         response = TextToSpeechResponse(
             link=link,
             absolute_path=abs_path,
             text=request.text,
-            voice_preset=request.voice_preset
+            voice_preset=voice_preset
         )
         return {"success": True, "data": response}
     except Exception as e:
