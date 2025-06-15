@@ -23,7 +23,8 @@ from cv_api import (
     api_image_super_resolution,
     api_image_classify
 )
-from data_models import ImageRequest
+from data_models import ImageRequest, VideoStabilizationRequest # Added VideoStabilizationRequest
+from video_api import api_video_stabilization # Added api_video_stabilization
 from thefuzz import process
 
 router = APIRouter()
@@ -127,7 +128,7 @@ def call_llm(messages, temperature=0.0):
 @router.post("/api/llm")
 async def getResponseFromLlama3(request: LLMRequest):
     try:
-        # return {"tool_name": "add_slide", "params": {"text": "Welcome to Qualcomm"}}
+        # print(request.context)
         print(json.dumps(request.context, indent=2))
         logger.info("🤖 Starting API call to getResponseFromLlama3")
         logger.info(f"Received command: '{request.command}'")
@@ -314,6 +315,157 @@ async def getResponseFromLlama3(request: LLMRequest):
                             error=error_msg,
                         )
 
+                elif tool_name == "file_classify":
+                    logger.info("Handling file_classify tool with AI classification.")
+                    query = extracted_params.get("query")
+                    if not query or query == "NULL":
+                        error_msg = "Could not identify the search query from your command."
+                        logger.error("LLM did not extract a query for file_classify tool.")
+                        return build_response(
+                            success=False, tool_name=tool_name, error=error_msg
+                        )
+
+                    files_in_context = request.context.get("files", [])
+                    current_directory = request.context.get("current_directory")
+                    
+                    if not files_in_context:
+                        error_msg = "There are no files available in the current context to classify."
+                        logger.error("No files found in context for file_classify tool.")
+                        return build_response(
+                            success=False, tool_name=tool_name, error=error_msg
+                        )
+                    
+                    if not current_directory:
+                        error_msg = "Current directory not available in context."
+                        logger.error("No current directory found in context for file_classify tool.")
+                        return build_response(
+                            success=False, tool_name=tool_name, error=error_msg
+                        )
+
+                    # Create full file paths
+                    full_file_paths = [os.path.join(current_directory, f) for f in files_in_context]
+                    logger.info(f"File paths for classification: {full_file_paths}")
+
+                    try:
+                        # Call the classifier API
+                        classify_request = FunRequest(
+                            file_paths=full_file_paths,
+                            query_string=query
+                        )
+                        classification_result = await api_image_classify(classify_request)
+                        logger.info("Received response from cv_api image classify.")
+
+                        if classification_result and classification_result.get("results"):
+                            # Extract just the file names from the full paths for the response
+                            results_with_filenames = []
+                            for result in classification_result["results"]:
+                                filename = os.path.basename(result["file_path"])
+                                results_with_filenames.append({
+                                    "fileName": filename,
+                                    "class": result["class"],
+                                    "score": result["score"]
+                                })
+                            
+                            return build_response(
+                                success=True,
+                                tool_name=tool_name,
+                                params={
+                                    "query": query,
+                                    "results": results_with_filenames,
+                                    "directory": current_directory
+                                },
+                                message=f"Found {len(results_with_filenames)} files matching '{query}'."
+                            )
+                        else:
+                            error_msg = "No matching files found for the given query."
+                            logger.warning(f"No classification results returned for query '{query}'.")
+                            return build_response(
+                                success=False,
+                                tool_name=tool_name,
+                                error=error_msg,
+                                params={"query": query, "results": []}
+                            )
+
+                    except Exception as e:
+                        error_msg = f"Error during file classification: {str(e)}"
+                        logger.error(f"Classification API call failed: {e}")
+                        return build_response(
+                            success=False, tool_name=tool_name, error=error_msg
+                        )
+
+                elif tool_name == "video_stabilization":
+                    logger.info("Handling video_stabilization tool.")
+                    video_path_param = extracted_params.get("videoPath")
+
+                    if not video_path_param or video_path_param == "NULL":
+                        # Try to get from context if not provided by LLM
+                        logger.info("videoPath not in LLM params, trying context.")
+                        video_uri_from_context = _get_image_uri_from_context(request.context) # Reusing for video
+                        if video_uri_from_context:
+                            video_path_param = video_uri_from_context
+                            if video_path_param.startswith("file://"):
+                                video_path_param = video_path_param.replace("file://", "", 1)
+                            video_path_param = os.path.normpath(video_path_param)
+                            logger.info(f"Using video path from context: {video_path_param}")
+                        else:
+                            error_msg = "Could not identify the video to stabilize. Please select a video or specify the path."
+                            logger.error("LLM did not extract a videoPath, and no video found in context.")
+                            return build_response(
+                                success=False, tool_name=tool_name, error=error_msg, text=error_msg
+                            )
+
+                    # If video_path_param is still just a filename, try to make it absolute
+                    if not os.path.isabs(video_path_param):
+                        current_directory = request.context.get("current_directory")
+                        if current_directory:
+                            potential_path = os.path.join(current_directory, video_path_param)
+                            if os.path.exists(potential_path):
+                                video_path_param = potential_path
+                                logger.info(f"Resolved relative video path to: {video_path_param}")
+                            else:
+                                # Check files in context as a fallback for filename-only
+                                files_in_context = request.context.get("files", [])
+                                best_match, score = process.extractOne(video_path_param, files_in_context)
+                                if score > 80 and current_directory: # Confidence threshold
+                                     video_path_param = os.path.join(current_directory, best_match)
+                                     logger.info(f"Fuzzy matched filename to context file: {video_path_param}")
+                                else:
+                                    error_msg = f"Could not find video: '{video_path_param}'. Please provide a valid path or select a video."
+                                    logger.error(f"Video path '{video_path_param}' is not absolute and could not be resolved or found in context files.")
+                                    return build_response(success=False, tool_name=tool_name, error=error_msg, text=error_msg)
+                        else:
+                            error_msg = f"Video path '{video_path_param}' is relative, but no current directory in context to resolve it."
+                            logger.error(error_msg)
+                            return build_response(success=False, tool_name=tool_name, error=error_msg, text=error_msg)
+                    
+                    if not os.path.exists(video_path_param):
+                        error_msg = f"Video file not found at path: {video_path_param}"
+                        logger.error(error_msg)
+                        return build_response(success=False, tool_name=tool_name, error=error_msg, text=error_msg)
+
+                    try:
+                        logger.info(f"Calling video_api for stabilization with video path: {video_path_param}")
+                        stabilization_request = VideoStabilizationRequest(video_path=video_path_param)
+                        api_response = await api_video_stabilization(stabilization_request)
+                        logger.info("Received response from video_api stabilization.")
+
+                        if api_response and api_response.get("success"):
+                            return build_response(
+                                success=True,
+                                tool_name=tool_name,
+                                params={"output_path": api_response.get("output_path")},
+                                message=f"Video stabilized successfully. Output at: {api_response.get('output_path')}"
+                            )
+                        else:
+                            error_message = api_response.get("error") if isinstance(api_response, dict) else "Unknown error from Video API"
+                            logger.error(f"video_api call failed for '{tool_name}': {error_message}")
+                            return build_response(success=False, tool_name=tool_name, error=error_message)
+
+                    except Exception as e:
+                        error_msg = f"Error during video stabilization: {str(e)}"
+                        logger.error(f"Video stabilization API call failed: {e}", exc_info=True)
+                        return build_response(success=False, tool_name=tool_name, error=error_msg)
+
                 elif tool_name in ["add_text", "add_shape", "add_slide"]:
                     logger.info(f"Successfully processed '{tool_name}'.")
                     return build_response(
@@ -351,3 +503,20 @@ async def getResponseFromLlama3(request: LLMRequest):
     except Exception as e:
         logger.critical(f"An unexpected error occurred: {e}", exc_info=True)
         return build_response(success=False, error=str(e))
+
+
+
+# HOW TO CALL THE CLASSIFIER TOOL
+# def _sample_call_llm():
+#     print([request.context["current_directory"] + "/" + f for f in request.context["files"]])
+#     try:
+#         res = await api_image_classify(FunRequest(
+#             file_paths=[request.context["current_directory"] + "/" + f for f in request.context["files"]],
+#             query_string=request.command,
+#         ))
+#     except Exception as e:
+#         print(f"Error during request: {e}")
+#         return {"tool_name": "add_file_classifier", "params": {"error": str(e)}}
+#     print("post await")
+#     print(res)
+#     return {"tool_name": "add_file_classifier", "params": res}

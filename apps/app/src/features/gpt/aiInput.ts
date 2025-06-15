@@ -218,18 +218,18 @@ export class AiInput extends LitElement {
                 } else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
                 } else if (response.tool_name == "super_resolution") {
-                  console.log(response.data);
+                  console.log(response.params);
                   renderNewImage(response.data.absolute_path, true);
                 } else if (response.tool_name == "remove_background") {
-                  console.log(response.data);
+                  console.log(response.params);
                   renderNewImage(response.data.absolute_path);
                 } else if (response.tool_name == "potrait_effect") {
-                  console.log(response.data);
+                  console.log(response.params);
                   renderNewImage(response.data.absolute_path);
                 } else if (response.tool_name == "color_grading") {
-                  console.log(response.data);
-                  renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "add_file_classifier") {
+                  console.log(response.params);
+                  renderNewImage(response.params.absolute_path);
+                } else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);
                   // simply adds top result to the timeline
                   const myResult = {
@@ -238,7 +238,7 @@ export class AiInput extends LitElement {
                   console.log(myResult);
                   addElementAbs(myResult);
                 } else if (response.tool_name == "export") {
-                  console.log(response.data);
+                  console.log(response.params);
                   exportVideo(response.params);
                 } else {
                   console.log("Unknown tool:", response.tool_name);
@@ -249,7 +249,6 @@ export class AiInput extends LitElement {
                 console.log("unset complete");
               })
               .catch((error) => {
-
                 this.uiState = uiStore.getState();
                 this.uiState.unsetThinking();
                 console.error("Error getting the response:", error);

@@ -10,6 +10,7 @@ image:
   background_removal:
     confidence_threshold: 0.5
     use_fp16: false  # Disabled for MPS compatibility
+<<<<<<< HEAD
 
 # # model paths
 # "encoder_path": "models/whisper/WhisperEncoder.onnx"
@@ -24,3 +25,17 @@ image:
 "max_workers": 4              # Number of parallel transcription workers
 "silence_threshold": 0.001    # Threshold for silence detection
 "queue_timeout": 1.0          # Timeout for audio queue operations
+=======
+audio:
+  transcription:
+    model: "base"
+    chunk_duration: 10.0
+    overlap_duration: 0.5
+    language: "auto"
+    task: "transcribe"
+  denoise:
+    noise_clip_sec: 0.5  # seconds of audio to use as noise profile
+    prop_decrease: 1.0   # amount of noise reduction (0-1)
+    stationary: true     # stationary noise reduction
+    n_std_thresh_stationary: 1.5  # threshold for stationary noise
+>>>>>>> bdc3efda3a12cf132e8f031d43915d5f3010fc72
