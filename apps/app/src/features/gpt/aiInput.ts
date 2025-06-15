@@ -11,7 +11,8 @@ import {
   addShapeElement,
   renderNewImage,
   addSlideElement,
-  addElement
+  addElement,
+  exportVideo
 } from "../../../reponseHandlers";
 
 @customElement("ai-input")
@@ -199,19 +200,23 @@ export class AiInput extends LitElement {
                 }
                 else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
-                } else if (response.type == "super_resolution") {
+                } else if (response.tool_name == "super_resolution") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path, true);
-                } else if (response.type == "remove_background") {
+                } else if (response.tool_name == "remove_background") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else if (response.type == "potrait_effect") {
+                } else if (response.tool_name == "potrait_effect") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else if (response.type == "color_grading") {
+                } else if (response.tool_name == "color_grading") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else {
+                } else if (response.tool_name == "export"){
+                  console.log(response.data);
+                  exportVideo(response.params);
+                }
+                else {
                   console.log("Unknown tool:", response.tool_name);
                 }
                 console.log("unset complete");

@@ -307,7 +307,7 @@ export class ElementControl extends LitElement {
         priority: this.getNowPriority(),
         blob: blob,
         startTime: 0,
-        duration: 1000,
+        duration: 3000,
         opacity: 100,
         location: { x: 0, y: 0 },
         rotation: 0,
