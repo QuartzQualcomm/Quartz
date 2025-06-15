@@ -122,3 +122,7 @@ Please do your best to maintain the "base template" spirit of the app so that it
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
 
 This project follows the [Contributor Covenant](https://www.contributor-covenant.org/). Read more about it in the [code of conduct](CODE_OF_CONDUCT.md) file.
+
+# Simple Whisper Transcription
+
+This project provides a Python-based server that utilizes OpenAI's Whisper model for audio transcription. It can be used to convert speech from audio files or streams into text.
