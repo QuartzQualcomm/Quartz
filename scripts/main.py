@@ -22,9 +22,9 @@ import audio_api
 
 # Include routers
 router.include_router(cv_api.router)
-router.include_router(llm_api.router)
 router.include_router(video_api.router)
 router.include_router(audio_api.router)
+router.include_router(llm_api.router)
 
 
 @router.get("/api/health")
