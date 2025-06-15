@@ -17,3 +17,8 @@ audio:
     overlap_duration: 0.5
     language: "auto"
     task: "transcribe"
+  denoise:
+    noise_clip_sec: 0.5  # seconds of audio to use as noise profile
+    prop_decrease: 1.0   # amount of noise reduction (0-1)
+    stationary: true     # stationary noise reduction
+    n_std_thresh_stationary: 1.5  # threshold for stationary noise

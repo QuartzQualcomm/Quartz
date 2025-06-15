@@ -62,6 +62,32 @@ curl -X POST "http://localhost:8000/api/video/portrait-effect" \
        "video_path": "assets/demo_video.mp4"
      }'
 ```
+### /api/video/denoise
+
+Remove background noise from the audio track of a video file (MP4) using the noisereduce library. The cleaned audio is remuxed with the original video and a new MP4 is returned.
+
+**Sample request:**
+
+```bash
+curl -X POST "http://localhost:8000/api/video/denoise" \
+     -H "accept: application/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "video_path": "/absolute/path/to/your/video.mp4"
+     }'
+```
+
+**Sample response:**
+```json
+{
+  "success": true,
+  "data": {
+    "link": "/api/assets/public/denoised_yourvideo.mp4",
+    "absolute_path": "/full/path/to/assets/public/denoised_yourvideo.mp4"
+  }
+}
+```
+
 ## Image
 ### /api/image/super-resolution
 
