@@ -12,7 +12,7 @@ import {
   renderNewImage,
   addSlideElement,
   addElement,
-  exportVideo
+  exportVideo,
 } from "../../../reponseHandlers";
 
 @customElement("ai-input")
@@ -160,7 +160,7 @@ export class AiInput extends LitElement {
         const elementTimelineCanvasObject = document.querySelector(
           "element-timeline-canvas",
         );
-        const AssetList = document.querySelector("asset-list")
+        const AssetList = document.querySelector("asset-list");
         const context = {
           timeline: {
             cursor: timelineLatest.cursor / 1000,
@@ -176,7 +176,7 @@ export class AiInput extends LitElement {
               timelineLatest.timeline[canvasLatestObject.activeElementId],
           },
           files: AssetList.fileList || [],
-          current_directory: AssetList.nowDirectory
+          current_directory: AssetList.nowDirectory,
         };
         this.panelOpen();
         const chatLLMState = chatLLMStore.getState();
@@ -199,11 +199,9 @@ export class AiInput extends LitElement {
                   addSlideElement(response.params);
                 } else if (response.tool_name == "add_shape") {
                   addShapeElement(response.params);
-                } 
-                else if (response.tool_name == "add_file"){
-                  addElement(response.params)
-                }
-                else if (response.tool_name == "video") {
+                } else if (response.tool_name == "add_file") {
+                  addElement(response.params);
+                } else if (response.tool_name == "video") {
                   console.log("Video response from LLM.");
                 } else if (response.tool_name == "super_resolution") {
                   console.log(response.data);
@@ -217,11 +215,18 @@ export class AiInput extends LitElement {
                 } else if (response.tool_name == "color_grading") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "export"){
+                } else if (response.tool_name == "add_file_classifier") {
+                  console.log("Classified file added:", response.params);
+                  // simply adds top result to the timeline
+                  const myResult = {
+                    file_url: response.params.results[0].file_path,
+                  };
+
+                  addElement(response.params);
+                } else if (response.tool_name == "export") {
                   console.log(response.data);
                   exportVideo(response.params);
-                }
-                else {
+                } else {
                   console.log("Unknown tool:", response.tool_name);
                 }
                 console.log("unset complete");
