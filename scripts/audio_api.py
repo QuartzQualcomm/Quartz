@@ -211,7 +211,7 @@ async def api_text_to_speech(text: str):
 
 
 @router.post("/api/video/denoise")
-async def api_video_denoise(request: VideoRequest):
+async def api_video_denoise(path: str):
     """
     Remove background noise from video audio and return processed video path.
     """
@@ -219,12 +219,12 @@ async def api_video_denoise(request: VideoRequest):
         from models.audio import remove_noise_from_video
 
         # Validate video path
-        if not os.path.exists(request.video_path):
+        if not os.path.exists(path):
             raise HTTPException(
-                status_code=404, detail=f"Video file not found: {request.video_path}"
+                status_code=404, detail=f"Video file not found: {path}"
             )
 
-        output_path = remove_noise_from_video(request.video_path)
+        output_path = remove_noise_from_video(path)
         link = f"/api/assets/public/{Path(output_path).name}"
         response = VideoResponse(
             link=link, absolute_path=str(Path(output_path).resolve())

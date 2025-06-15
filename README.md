@@ -12,12 +12,20 @@ It is built by Team Quartz for **Snapdragon Edge AI** Hackathon at Bengaluru, 20
 ## System Architecture
 
 
+## ML Models Used
 
+We are using the following models. They are deployed on either NPU/CPU (based on their pre-trained availability).
+- Llama 3.1 8B (AnythingLLM) - For chat completions.
+- Whisper Base (NPU for Speech-to-Text, CPU for time-stamped transcriptions) - For speech to text and transcriptions (.srt)
+- Large Mask (LaMa) Inpainting (For Video Stabilization)
+- ESRGAN (NPU) - For increasing quality of image/video
+- Yolov8 (NPU) - For object classification and adding files to timeline based on content
+- MiDAS (NPU) - Depth Estimation for Background Blurring 
+- ViT (CPU) - Image Classification for image metadata  
 ## Features
 All basic functionality of a video editor - but powered by an LLM that saves your number of clicks. Just speak out your command, and your timeline will transform as you dream.
 
 - Chat Interface
-- Unlimited Layers
 - Audio Input to Chat
 - Speech to Text
 - Text to Speech
@@ -50,35 +58,36 @@ You can check out a limited demo of the website at the [following link](https://
 
 ## Installation
 
-First, install dependencies.
-
-```
-npm install
-```
+Follow [INSTALL.md](INSTALL.md)
 
 ## Roadmap
 
 Since this project is a fork of another video editor, we plan to keep adding features. Here are the current plans:
 1. Query Decomposition
-2. Multi-Tool Handling
-3. Adding API comptaibility for LLMs
-4. UI and Speed Improvements
-5. Compilation of binaries for different platforms
+2. Adding support for faster video tool processing (stabilization, background removal, etc.)
+3. Multi-Tool Handling
+4. Adding API comptaibility for LLMs
+5. UI and Speed Improvements
+6. Compilation of binaries for different platforms
 
 ## Contributors
 
  <a href = "https://github.com/thearnavrustagi">
    Arnav Rustagi
  </a>
+ 
  <a href = "https://github.com/thisabhinav26">
    Abhinav Lodha
  </a>
+ 
  <a href = "https://github.com/pjrcodes">
    Pranjal Rustagi
  </a>
+ 
  <a href = "https://github.com/and-human">
    Anshuman Sharma
  </a>
+ 
  <a href = "https://github.com/jalansubham7">
    Subham Jalan
  </a>

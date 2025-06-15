@@ -26,7 +26,7 @@ export function renderNewImage(absolute_path: string, superRes?: boolean): boole
   
   timelineState.patchTimeline(timeline);
 
-  previewCanvas.drawCanvas();
+  // previewCanvas.drawCanvas();
 
   return false;
 }
