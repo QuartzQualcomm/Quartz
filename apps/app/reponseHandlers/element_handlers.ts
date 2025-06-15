@@ -8,10 +8,10 @@ export function addElement(data) {
         return false;
     }
     try {
-        const AssetList = document.querySelector("asset-list")
-        const current_directory = AssetList.current_directory
+        // const AssetList = document.querySelector("asset-list")
+        // const current_directory = AssetList.current_directory
         const assetController = new AssetController();
-        const filePath = current_directory + "/" + data.file_url;
+        const filePath = data.directory + "\\" + data.fileName;
         assetController.add(filePath);
     }
     catch {

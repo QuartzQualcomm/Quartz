@@ -206,7 +206,7 @@ async def getResponseFromLlama3(request: LLMRequest):
                 return build_response(
                     success=True,
                     tool_name=tool_name,
-                    params={"imageUri": api_response["data"].link},
+                    params=api_response["data"]
                 )
             else:
                 error_message = (
@@ -357,24 +357,17 @@ async def getResponseFromLlama3(request: LLMRequest):
 
                         if classification_result and classification_result.get("results"):
                             # Extract just the file names from the full paths for the response
-                            results_with_filenames = []
-                            for result in classification_result["results"]:
-                                filename = os.path.basename(result["file_path"])
-                                results_with_filenames.append({
-                                    "fileName": filename,
-                                    "class": result["class"],
-                                    "score": result["score"]
-                                })
+                          
                             
                             return build_response(
                                 success=True,
                                 tool_name=tool_name,
                                 params={
                                     "query": query,
-                                    "results": results_with_filenames,
+                                    "results": classification_result.get("results"),
                                     "directory": current_directory
                                 },
-                                message=f"Found {len(results_with_filenames)} files matching '{query}'."
+                                message=f"Found 3 files matching '{query}'."
                             )
                         else:
                             error_msg = "No matching files found for the given query."

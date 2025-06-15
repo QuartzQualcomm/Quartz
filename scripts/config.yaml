@@ -10,22 +10,6 @@ image:
   background_removal:
     confidence_threshold: 0.5
     use_fp16: false  # Disabled for MPS compatibility
-<<<<<<< HEAD
-
-# # model paths
-# "encoder_path": "models/whisper/WhisperEncoder.onnx"
-# "decoder_path": "models/whisper/WhisperDecoder.onnx"
-
-# audio settings
-"sample_rate": 16000          # Audio sample rate in Hz
-"chunk_duration": 4           # Duration of each audio chunk in seconds
-"channels": 1                 # Number of audio channels (1 for mono)
-
-# processing settings
-"max_workers": 4              # Number of parallel transcription workers
-"silence_threshold": 0.001    # Threshold for silence detection
-"queue_timeout": 1.0          # Timeout for audio queue operations
-=======
 audio:
   transcription:
     model: "base"
@@ -38,4 +22,3 @@ audio:
     prop_decrease: 1.0   # amount of noise reduction (0-1)
     stationary: true     # stationary noise reduction
     n_std_thresh_stationary: 1.5  # threshold for stationary noise
->>>>>>> bdc3efda3a12cf132e8f031d43915d5f3010fc72
