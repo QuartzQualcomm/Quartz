@@ -11,7 +11,7 @@ It is built by Team Quartz for **Snapdragon Edge AI** Hackathon at Bengaluru, 20
 
 
 ## System Architecture
-
+![System Architecture](https://github.com/user-attachments/assets/42a349c7-2bf0-4229-9183-488c42377c72)
 
 ## ML Models Used
 
