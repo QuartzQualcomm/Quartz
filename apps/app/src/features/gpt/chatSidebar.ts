@@ -53,13 +53,7 @@ export class ChatSidebar extends LitElement {
 
   clearChat() {
     chatLLMStore.setState({
-      list: [
-        {
-          from: "agent",
-          text: "Hello, I'm Quartz! I'm your personal local AI video editor powered by Qualcomm Snapdragon X. Start by giving me commands!",
-          timestamp: new Date().toISOString(),
-        }
-      ]
+      list: []
     });
   }
 
@@ -216,6 +210,34 @@ export class ChatSidebar extends LitElement {
         .send-button:hover {
           color: #B0B0B0;
         }
+        .empty-state {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          width: 100%;
+          margin-top: 3rem;
+          transition: all 0.5s ease-out;
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .empty-state img {
+          max-width: 75%;
+          max-height: 50vh;
+        }
+        .empty-state.fade-out {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        .chat-messages {
+          transition: all 0.3s ease-in;
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .chat-messages.fade-in {
+          opacity: 1;
+          transform: translateY(0);
+        }
       </style>
 
       <div
@@ -235,7 +257,12 @@ export class ChatSidebar extends LitElement {
               </button>
             </div>
           </div>
-          <div class="w-100 d-flex row gap-3 chat-box-container">${lists}</div>
+          <div class="w-100 d-flex row gap-3 chat-box-container">
+            ${this.chatList.length === 0 
+              ? html`<div class="empty-state"><img src="./assets/splash-logo.png" alt="Quartz Logo" /></div>`
+              : html`<div class="chat-messages">${lists}</div>`
+            }
+          </div>
         </div>
 
         <div class="d-flex justify-content-center align-items-center">

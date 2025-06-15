@@ -365,7 +365,7 @@ export class AiInput extends LitElement {
     if (currentWidth > 0) {
       this.uiState.setChatSidebar(0); // Close the sidebar
     } else {
-      this.uiState.setChatSidebar(250); // Open the sidebar to 250px
+      this.uiState.setChatSidebar(375); // Open the sidebar to 400px (increased from 250px)
     }
   }
 

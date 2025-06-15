@@ -25,12 +25,37 @@ export class ChatAiInput extends LitElement {
   @property({ type: String })
   textContent: string = "";
 
+  @property({ type: String })
+  currentPlaceholder: string = "Ask me anything...";
+
+  private placeholderInterval: any;
+  private placeholders = [
+    "Can you write 'My awesome video' on the selected clip?",
+    "Add a red circle",
+    "Color transfer barbie to this image",
+    "Give me the portrait effect of this image",
+  ];
+
   constructor() {
     super();
     this.isEnter = false;
     this.isRecording = false;
     this.mediaRecorder = null;
     this.audioChunks = [];
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    let placeholderIndex = 0;
+    this.placeholderInterval = setInterval(() => {
+      placeholderIndex = (placeholderIndex + 1) % this.placeholders.length;
+      this.currentPlaceholder = this.placeholders[placeholderIndex];
+    }, 3000);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    clearInterval(this.placeholderInterval);
   }
 
   toast = new ToastController(this);
@@ -244,7 +269,8 @@ export class ChatAiInput extends LitElement {
           }
           // Clear the input field after sending the command
           if (event.target) {
-            (event.target as HTMLInputElement).value = "";
+            (event.target as HTMLTextAreaElement).value = "";
+            (event.target as HTMLTextAreaElement).style.height = 'auto';
             this.textContent = "";
           }
         } catch (error) {
@@ -352,81 +378,237 @@ export class ChatAiInput extends LitElement {
     if (currentWidth > 0) {
       this.uiState.setChatSidebar(0); // Close the sidebar
     } else {
-      this.uiState.setChatSidebar(250); // Open the sidebar to 250px
+      this.uiState.setChatSidebar(375); // Open the sidebar to 400px (increased from 250px)
     }
   }
 
   handleInput(event) {
     this.textContent = event.target.value;
+    
+    // Auto-resize textarea
+    const textarea = event.target as HTMLTextAreaElement;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  }
+
+  handleSendClick() {
+    const inputElement = this.shadowRoot?.querySelector('#chatLLMInput') as HTMLTextAreaElement;
+    if (inputElement) {
+      const enterEvent = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        code: 'Enter',
+        keyCode: 13,
+        which: 13,
+        bubbles: true,
+        cancelable: true
+      });
+      Object.defineProperty(enterEvent, 'target', {
+        value: inputElement,
+        enumerable: true
+      });
+      this.handleEnter(enterEvent);
+    }
   }
 
   render() {
     return html`
       <style>
-        .input-wrapper {
-          flex-grow: 1;
-          width:100%;
+        .chat-container {
           display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          border-radius: 8px;
-          background-color: #2C2C30;
-          padding: 0.3rem 0.7rem;
-          font-size: 0.85rem;
-          box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.3);
-          border: 1px solid #3a3f44;
+          flex-direction: column;
+          gap: 12px;
         }
-        .chat-input {
-          flex-grow: 1;
-          width:100%;
-          background-color: transparent;
-          border: none;
-          padding: 0;
-          font-size: 0.85rem;
-          color: #DCDCDC;
+        
+        /* First Row - Text Input with Mic */
+        .input-row {
+          position: relative;
+          width: 100%;
         }
-        .send-button {
+        
+        .text-input-wrapper {
+          background: #25282D;
+          border-radius: 16px;
+          display: flex;
+          align-items: flex-start;
+          width: 100%;
+          box-sizing: border-box;
+          padding: 2px;
+        }
+        
+        .text-input {
+          flex: 1;
           background: transparent;
           border: none;
-          color: #888888;
-          font-size: 1.4rem;
+          outline: none;
+          color: #FFFFFF;
+          font-size: 14px;
+          font-weight: 300;
+          resize: none;
+          min-height: 20px;
+          max-height: 120px;
+          overflow-y: auto;
+          line-height: 1.4;
+          font-family: inherit;
+          padding-bottom:12px;
+          padding-top:12px;
+          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none; /* Internet Explorer 10+ */
+        }
+        
+        .text-input:focus {
+          outline: none;
+          border: none;
+          box-shadow: none;
+        }
+        
+        .text-input::-webkit-scrollbar {
+          display: none; /* WebKit */
+        }
+        
+        .text-input::placeholder {
+          color: rgba(142, 142, 147, 0.8);
+          font-weight: 300;
+        }
+        
+        .mic-button {
+          background: transparent;
+          border: none;
+          color: rgba(142, 142, 147, 0.9);
           cursor: pointer;
+          padding: 6px;
+          border-radius: 6px;
+          transition: all 0.2s ease;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: color 0.2s ease;
+          margin-left: 12px;
+          margin-top: 6px;
+          flex-shrink: 0;
         }
+        
+        .mic-button:hover {
+          color: #FFFFFF;
+          background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .mic-button.recording {
+          color: #FF3B30;
+        }
+        
+        .mic-button .material-symbols-outlined {
+          font-size: 20px;
+        }
+        
+        /* Second Row - Model Info and Send Button */
+        .bottom-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          width: 100%;
+        }
+        
+        .model-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 16px;
+          background: #515357;
+          border-radius: 20px;
+          border: 1px solid rgba(62, 62, 66, 0.6);
+        }
+        
+        .meta-logo {
+          width: 20px;
+          height: 20px;
+          opacity: 0.9;
+          filter: brightness(0.8);
+          object-fit: contain;
+        }
+        
+        .model-name {
+          color: #FFFFFF;
+          font-size: 14px;
+          font-weight: 400;
+          letter-spacing: 0.2px;
+        }
+        
+        .send-button {
+          background: #E5E5E7;
+          border: none;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+        }
+        
         .send-button:hover {
-          color: #B0B0B0;
+          background: #D1D1D6;
+          transform: scale(1.05);
+        }
+        
+        .send-button:active {
+          transform: scale(0.95);
+        }
+        
+        .send-button .material-symbols-outlined {
+          font-size: 18px;
+          color: #1C1C1E;
+        }
+        
+        /* Focus state for input */
+        .text-input-wrapper:focus-within {
+          /* Removed blue focus indicators */
         }
       </style>
-      <div class="input-wrapper">
-        <input
-          type="text"
-          class="chat-input"
-          placeholder="Ask me anything..."
-          .value="${this.textContent}"
-          id="chatLLMInput"
-          @keydown="${this.handleEnter}"
-          @input="${this.handleInput}"
-          @click=${this.handleClickInput}
-        />
-        <button
-          class="btn btn-sm p-0"
-          @click="${this.toggleRecording}"
-          title="${this.isRecording ? "Stop recording" : "Start recording"}"
-        >
-          <span
-            class="material-symbols-outlined icon-sm ${this.isRecording
-              ? "text-danger"
-              : "text-secondary"}"
-          >
-            ${this.isRecording ? "stop_circle" : "mic"}
-          </span>
-        </button>
-        <button class="send-button" @click="${this.handleEnter}">
-          <span class="material-symbols-outlined">arrow_upward</span>
-        </button>
+
+      <div class="chat-container" style="background-color: #25282D; border-radius: 24px; padding: 12px; margin: 8px">
+        <!-- First Row: Text Input with Mic -->
+        <div class="input-row">
+          <div class="text-input-wrapper">
+            <textarea
+              class="text-input"
+              placeholder="${this.currentPlaceholder}"
+              .value="${this.textContent}"
+              id="chatLLMInput"
+              @keydown=${this.handleEnter}
+              @input=${this.handleInput}
+              @click=${this.handleClickInput}
+              rows="1"
+            ></textarea>
+            <button
+              class="mic-button ${this.isRecording ? 'recording' : ''}"
+              @click="${this.toggleRecording}"
+              title="${this.isRecording ? "Stop recording" : "Start recording"}"
+            >
+              <span class="material-symbols-outlined">
+                ${this.isRecording ? "stop_circle" : "mic"}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Second Row: Model Info and Send Button -->
+        <div class="bottom-row">
+          <div class="model-info">
+            <img 
+              src="assets/meta.png" 
+              alt="Meta" 
+              class="meta-logo"
+            />
+            <span class="model-name">llama3.18 B</span>
+          </div>
+          
+          <button class="send-button" @click="${this.handleSendClick}">
+            <span class="material-symbols-outlined">
+              arrow_upward
+            </span>
+          </button>
+        </div>
       </div>
     `;
   }
