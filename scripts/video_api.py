@@ -15,6 +15,7 @@ from utils.image_helpers import (
 import tempfile
 import shutil
 import subprocess
+from pathlib import Path
 
 router = APIRouter()
 
@@ -455,3 +456,57 @@ async def api_video_portrait_effect(request: VideoRequest) -> VideoResponse:
         if temp_dir:
             cleanup_temp_files(temp_dir)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.post("/api/video/denoise")
+async def api_video_denoise(request: VideoRequest):
+    """
+    Remove background noise from video file.
+    """
+    try:
+        # Validate file path exists
+        if not os.path.exists(request.video_path):
+            raise HTTPException(status_code=404, detail=f"File not found: {request.video_path}")
+        
+        # Get absolute paths
+        abs_input_path = str(Path(request.video_path).resolve())
+        
+        # Create output filename
+        input_path = Path(request.video_path)
+        output_filename = f"denoised_{input_path.stem}{input_path.suffix}"
+        output_path = Path("assets/public") / output_filename
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        abs_output_path = str(output_path.resolve())
+        
+        # Extract audio
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_audio = Path(temp_dir) / "temp_audio.wav"
+            subprocess.run([
+                'ffmpeg', '-i', abs_input_path, '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '44100', '-ac', '2', str(temp_audio), '-y'
+            ], capture_output=True, check=True)
+            
+            # Process audio with noise reduction
+            from audio_utils import remove_noise
+            processed_audio = remove_noise(str(temp_audio))
+            
+            # Combine processed audio with original video
+            subprocess.run([
+                'ffmpeg', '-i', abs_input_path, '-i', processed_audio,
+                '-c:v', 'copy', '-map', '0:v:0', '-map', '1:a:0',
+                '-shortest', abs_output_path, '-y'
+            ], capture_output=True, check=True)
+        
+        return {
+            "success": True,
+            "data": {
+                "video_path": abs_output_path,
+                "link": f"/api/assets/public/{output_filename}",
+                "absolute_path": abs_output_path,
+                "original_file_absolute_path": abs_input_path
+            }
+        }
+        
+    except HTTPException as e:
+        return {"success": False, "error": e.detail}
+    except Exception as e:
+        return {"success": False, "error": f"Video denoising failed: {str(e)}"}
