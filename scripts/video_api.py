@@ -118,7 +118,7 @@ def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabiliz
     try:
         logger.info("🎬 Starting video stabilization API call")
         logger.info(f"📁 Input video path: {request.video_path}")
-        logger.info(f"⏱️  Time range: {request.time_stamp[0]}s - {request.time_stamp[1]}s")
+        # logger.info(f"⏱️  Time range: {request.time_stamp[0]}s - {request.time_stamp[1]}s")
         
         logger.info("📂 Ensuring directories exist...")
         ensure_directories_exist()

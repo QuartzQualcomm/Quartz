@@ -216,7 +216,7 @@ export class AiInput extends LitElement {
                 } else if (response.tool_name == "color_grading") {
                   console.log(response.data);
                   renderNewImage(response.data.absolute_path);
-                } else if (response.tool_name == "add_file_classifier") {
+                } else if (response.tool_name == "file_classify") {
                   console.log("Classified file added:", response.params);
                   // simply adds top result to the timeline
                   const myResult = {
@@ -236,7 +236,6 @@ export class AiInput extends LitElement {
                 console.log("unset complete");
               })
               .catch((error) => {
-
                 this.uiState = uiStore.getState();
                 this.uiState.unsetThinking();
                 console.error("Error getting the response:", error);
