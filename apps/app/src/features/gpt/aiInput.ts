@@ -219,13 +219,13 @@ export class AiInput extends LitElement {
                   console.log("Video response from LLM.");
                 } else if (response.tool_name == "super_resolution") {
                   console.log(response.params);
-                  renderNewImage(response.data.absolute_path, true);
+                  renderNewImage(response.params.absolute_path, true);
                 } else if (response.tool_name == "remove_background") {
                   console.log(response.params);
-                  renderNewImage(response.data.absolute_path);
+                  renderNewImage(response.params.absolute_path);
                 } else if (response.tool_name == "potrait_effect") {
                   console.log(response.params);
-                  renderNewImage(response.data.absolute_path);
+                  renderNewImage(response.params.absolute_path);
                 } else if (response.tool_name == "color_grading") {
                   console.log(response.params);
                   renderNewImage(response.params.absolute_path);
