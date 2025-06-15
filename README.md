@@ -8,7 +8,6 @@ Best part? You never have to upload any sensitive or private information online.
 ![image](https://github.com/user-attachments/assets/78b6e96a-b642-49d6-9832-3df712e1dda2)
 
 It is built by Team Quartz for **Snapdragon Edge AI** Hackathon at Bengaluru, 2025.
-![plot](./.github/screenshotv1.png)
 
 
 ## System Architecture
@@ -54,8 +53,7 @@ All basic functionality of a video editor - but powered by an LLM that saves you
 
 ## Demo Video
 
-
-You can check out a limited demo of the website at the [following link](https://demo.nugget.cartesiancs.com/).
+[![Watch the video](https://img.youtube.com/vi/u13IzlR6sGU/0.jpg)](https://youtu.be/u13IzlR6sGU)
 
 
 ## Installation
