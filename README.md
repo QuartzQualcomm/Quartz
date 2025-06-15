@@ -5,6 +5,7 @@ An AI-enabled powerful video editor that lets you edit videos without any expert
 
 Best part? You never have to upload any sensitive or private information online. You can do everything locally, for free and with speed.
 
+![image](https://github.com/user-attachments/assets/78b6e96a-b642-49d6-9832-3df712e1dda2)
 
 It is built by Team Quartz for **Snapdragon Edge AI** Hackathon at Bengaluru, 2025.
 ![plot](./.github/screenshotv1.png)
