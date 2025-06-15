@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Dict, Any, Tuple, Optional
 import subprocess
 import shutil
+import logging
+import time
 
 from fastapi import UploadFile, File, HTTPException, APIRouter
 from pydantic import BaseModel
@@ -11,6 +13,10 @@ import numpy as np
 import soundfile as sf
 
 from models.audio import text_to_speech, remove_noise, transcribe_audio_to_srt, transcribe_audio_to_text, TARGET_SAMPLE_RATE, DEFAULT_CHUNK_DURATION, WHISPER_SAMPLE_RATE
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter()
@@ -141,7 +147,6 @@ def _extract_audio_from_video(video_path: str, audio_path: str, sample_rate: int
     """
     Extract audio track from video using ffmpeg.
     """
-    # -vn disable video, pcm_s16le for WAV, set sample rate and mono
     subprocess.run([
         'ffmpeg', '-y', '-i', video_path,
         '-vn', '-acodec', 'pcm_s16le', '-ar', str(sample_rate), '-ac', '1',
@@ -196,21 +201,30 @@ async def api_audio_remove_noise(file: UploadFile = File(...)) -> Dict[str, Any]
     Raises:
         HTTPException: If file validation or processing fails
     """
+    start_time = time.time()
+    logger.info(f"Starting noise removal for file: {file.filename}")
+    
     try:
         # Check for video input
         ext = Path(file.filename).suffix.lower()
         if ext in VIDEO_EXTS:
+            logger.info("Processing video file...")
             link = await _remove_noise_from_video(file)
+            logger.info(f"Video processing completed in {time.time() - start_time:.2f}s")
             return {"link": link}
         
         # Validate uploaded file format
+        logger.info("Validating audio file...")
         _validate_audio_file(file)
         
         # Process uploaded file to numpy array
+        logger.info("Loading audio data...")
         audio_data, sample_rate = await _process_audio_upload(file)
         
         # Apply noise removal
+        logger.info("Applying noise removal (this may take a while on first run)...")
         enhanced_audio = remove_noise(audio_data)
+        logger.info("Noise removal completed")
         
         # Generate unique filename and save processed audio
         unique_filename = _generate_unique_filename(file.filename, prefix="denoised")
@@ -218,11 +232,13 @@ async def api_audio_remove_noise(file: UploadFile = File(...)) -> Dict[str, Any]
         
         # Return absolute path to saved file
         abs_path = str(Path(saved_path).resolve())
+        logger.info(f"Audio processing completed in {time.time() - start_time:.2f}s")
         return {"link": abs_path}
         
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Processing failed after {time.time() - start_time:.2f}s: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
 
 
