@@ -5,8 +5,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from models.audio import transcribe_audio
+from models.audio import transcribe_audio, bark_text_to_speech
 from data_models import AudioTranscriptionRequest, AudioTranscriptionResponse, VideoRequest, VideoResponse
+from data_models import TextToSpeechRequest, TextToSpeechResponse
 from audio_utils import process_media_file, remove_noise
 
 router = APIRouter()
@@ -151,6 +152,31 @@ async def api_remove_noise(request: AudioTranscriptionRequest):
         return {"success": False, "error": e.detail}
     except Exception as e:
         return {"success": False, "error": f"Noise removal failed: {str(e)}"}
+    
+@router.post("/api/audio/text-to-speech")
+async def api_text_to_speech(request: TextToSpeechRequest):
+    """
+    Generate speech audio from input text using Bark by Suno.
+    """
+    try:
+        public_dir = Path("assets/public").resolve()
+        public_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"tts_{hash(request.text)}_{request.voice_preset.replace('/', '_')}.wav"
+        output_path = public_dir / filename
+
+        # Generate audio
+        result_path = bark_text_to_speech(request.text, str(output_path), request.voice_preset)
+        abs_path = str(Path(result_path).resolve())
+        link = f"/api/assets/public/{filename}"
+        response = TextToSpeechResponse(
+            link=link,
+            absolute_path=abs_path,
+            text=request.text,
+            voice_preset=request.voice_preset
+        )
+        return {"success": True, "data": response}
+    except Exception as e:
+        return {"success": False, "error": f"Text-to-speech failed: {str(e)}"}
 
 @router.post("/api/video/denoise")
 async def api_video_denoise(request: VideoRequest):

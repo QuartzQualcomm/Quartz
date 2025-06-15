@@ -8,6 +8,8 @@ import tempfile
 import os
 from pathlib import Path
 import yaml
+from bark import SAMPLE_RATE, generate_audio, preload_models
+from scipy.io.wavfile import write as write_wav
 
 
 def _load_config():
@@ -207,6 +209,37 @@ def remove_noise_from_video(video_path: str) -> str:
         ], capture_output=True, check=True)
 
     return str(out_path)
+
+
+# Ensure Bark models are loaded only once
+_bark_loaded = False
+
+def _preload_bark_models():
+    """Download and cache Bark models if not already loaded."""
+    global _bark_loaded
+    if not _bark_loaded:
+        preload_models()
+        _bark_loaded = True
+
+
+def bark_text_to_speech(text: str, output_path: str, voice_preset: str = None) -> str:
+    """
+    Generate speech from text using Bark and save to WAV.
+
+    Args:
+        text: Text prompt to synthesize.
+        output_path: File path where WAV will be saved.
+        voice_preset: Ignored by Bark API, kept for compatibility.
+
+    Returns:
+        The output_path string.
+    """
+    _preload_bark_models()
+    # Generate audio array
+    audio_array = generate_audio(text)
+    # Write to WAV file
+    write_wav(output_path, SAMPLE_RATE, audio_array)
+    return output_path
 
 
 if __name__ == "__main__":
