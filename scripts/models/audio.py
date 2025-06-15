@@ -35,11 +35,13 @@ def transcribe_audio(audio_path: str, model: str = None) -> str:
     config = _load_config()
     if model is None:
         model = config.get("model", "tiny")  # tiny is much faster
-    
+    # Get chunk duration from config for long audio splitting
+    chunk_duration = config.get("chunk_duration", 30.0)
+ 
     # Validate input
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
-    
+ 
     # Get audio duration first
     try:
         result = subprocess.run([
@@ -50,8 +52,8 @@ def transcribe_audio(audio_path: str, model: str = None) -> str:
     except:
         duration = 999  # Fallback to chunking if can't get duration
     
-    # If audio is short (< 30s), process directly without chunking
-    if duration < 30:
+    # If audio is short (< chunk_duration), process directly without chunking
+    if duration < chunk_duration:
         print(f"Processing short audio ({duration:.1f}s) directly...")
         with tempfile.TemporaryDirectory() as temp_dir:
             subprocess.run([
@@ -64,10 +66,9 @@ def transcribe_audio(audio_path: str, model: str = None) -> str:
             srt_file = next(Path(temp_dir).glob("*.srt"))
             return srt_file.read_text(encoding='utf-8')
     
-    # For longer audio, use 30-second chunks (much fewer chunks)
-    chunk_duration = 30.0
+    # For longer audio, split into chunks based on config
     print(f"Processing long audio ({duration:.1f}s) in {chunk_duration}s chunks...")
-    
+ 
     with tempfile.TemporaryDirectory() as temp_dir:
         # Split audio with ffmpeg
         chunk_pattern = os.path.join(temp_dir, "chunk_%03d.wav")
@@ -148,6 +149,64 @@ def _combine_srt_chunks(srt_chunks: list) -> str:
                 i += 1
     
     return combined
+
+
+def remove_noise_from_video(video_path: str) -> str:
+    """
+    Remove background noise from video audio using noisereduce library.
+    Uses config.yaml for noise reduction parameters if present.
+    """
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+
+    input_path = Path(video_path)
+    output_dir = Path("assets/public").resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load config for noise reduction params
+    import yaml
+    config_path = Path(__file__).parent.parent / "config.yaml"
+    if config_path.exists():
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+        nr_params = config.get("audio", {}).get("denoise", {})
+    else:
+        nr_params = {}
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Extract audio
+        orig_wav = Path(temp_dir) / "orig_audio.wav"
+        subprocess.run([
+            "ffmpeg", "-i", str(input_path), "-vn", "-acodec", "pcm_s16le",
+            "-ar", "44100", "-ac", "1", str(orig_wav), "-y"
+        ], capture_output=True, check=True)
+
+        # Noise reduction
+        import soundfile as sf
+        import noisereduce as nr
+        audio, sr = sf.read(str(orig_wav))
+        noise_clip = audio[: int(sr * nr_params.get("noise_clip_sec", 0.5))]
+        reduce_kwargs = dict(y=audio, sr=sr, y_noise=noise_clip)
+        # Add any extra config params
+        for k in ["prop_decrease", "stationary", "n_std_thresh_stationary"]:
+            if k in nr_params:
+                reduce_kwargs[k] = nr_params[k]
+        reduced_audio = nr.reduce_noise(**reduce_kwargs)
+
+        # Save cleaned audio
+        clean_wav = Path(temp_dir) / "clean_audio.wav"
+        sf.write(str(clean_wav), reduced_audio, sr)
+
+        # Remux
+        out_file = f"denoised_{input_path.stem}.mp4"
+        out_path = output_dir / out_file
+        subprocess.run([
+            "ffmpeg", "-i", str(input_path), "-i", str(clean_wav),
+            "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac",
+            str(out_path), "-y"
+        ], capture_output=True, check=True)
+
+    return str(out_path)
 
 
 if __name__ == "__main__":
