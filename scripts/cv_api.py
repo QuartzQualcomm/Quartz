@@ -8,7 +8,7 @@ import numpy as np
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from PIL import Image
 
-from models.image import get_super_resolution
+from models.image import get_super_resolution, image_classification
 from data_models import (
     ImageRequest,
     ColorTransferRequest,
@@ -33,6 +33,16 @@ from utils.image_helpers import (
 )
 
 router = APIRouter()
+
+@router.post("/api/image/classify")
+async def api_image_classify(request: ImageRequest):
+    validate_image_path(request.image_path)
+    pil_image = load_image_from_path(request.image_path)
+    top_class = image_classification(pil_image)
+
+    return {
+        "top": top_class
+    }
 
 @router.post("/api/image/super-resolution")
 async def api_image_super_resolution(request: ImageRequest):
