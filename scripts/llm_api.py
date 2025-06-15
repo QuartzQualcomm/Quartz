@@ -17,9 +17,11 @@ from utils.image_helpers import (
     save_processed_image_png,
 )
 from cv_api import (
+    FunRequest,
     api_image_background_removal,
     api_image_portrait_effect,
     api_image_super_resolution,
+    api_image_classify
 )
 from data_models import ImageRequest
 from thefuzz import process

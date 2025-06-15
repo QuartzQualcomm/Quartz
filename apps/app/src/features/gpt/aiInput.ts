@@ -14,6 +14,7 @@ import {
   addElement,
   exportVideo,
 } from "../../../reponseHandlers";
+import { addElementAbs } from "../../../reponseHandlers/element_handlers";
 
 @customElement("ai-input")
 export class AiInput extends LitElement {
@@ -193,6 +194,12 @@ export class AiInput extends LitElement {
             window.electronAPI.req.quartz
               .LLMResponse(command, context)
               .then((response) => {
+                chatLLMState.addList({
+                  from: "system",
+                  text: response.text,
+                  timestamp: new Date().toISOString(),
+                });
+                
                 if (response.tool_name == "add_text") {
                   addTextElement(response.params);
                 } else if (response.tool_name == "add_slide") {
@@ -221,25 +228,29 @@ export class AiInput extends LitElement {
                   const myResult = {
                     file_url: response.params.results[0].file_path,
                   };
-
-                  addElement(response.params);
+                  console.log(myResult);
+                  addElementAbs(myResult);
                 } else if (response.tool_name == "export") {
                   console.log(response.data);
                   exportVideo(response.params);
                 } else {
                   console.log("Unknown tool:", response.tool_name);
                 }
+
+                this.uiState = uiStore.getState();
+                this.uiState.unsetThinking();
                 console.log("unset complete");
               })
               .catch((error) => {
+
+                this.uiState = uiStore.getState();
+                this.uiState.unsetThinking();
                 console.error("Error getting the response:", error);
                 this.toast.show("Error getting the response", 2000);
               });
             // sleep for 1 second to allow the response to be processed
-            setTimeout(() => {
-              this.uiState = uiStore.getState();
-              this.uiState.unsetThinking();
-            }, 200);
+            // setTimeout(() => {
+            // }, 200);
           } else {
             console.error("IPC method 'quartz.LLMResponse' is not available");
             this.toast.show("LLMResponse functionality not available", 2000);
