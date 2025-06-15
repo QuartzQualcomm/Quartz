@@ -233,6 +233,9 @@ export class AiInput extends LitElement {
                 }else if (response.tool_name == "denoise") {
                   console.log(response.params);
                   renderNewImage(response.params.absolute_path);
+                } else if (response.tool_name == "export") {
+                  console.log(response.params);
+                  exportVideo(response.params);
                 } 
                 else if (response.tool_name == "auto_caption") {
                   console.log(response.params);

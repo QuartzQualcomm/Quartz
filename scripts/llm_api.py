@@ -175,6 +175,13 @@ async def getResponseFromLlama3(request: LLMRequest):
                 error=f"Could not parse tool identification response: {e}",
             )
 
+        if tool_name == "export":
+            return build_response(
+                success=True,
+                tool_name=tool_name,
+                error="",
+                text="",
+            )
         # Step 2: Handle the identified tool
         logger.info("Step 2: Handling identified tool...")
         if tool_name in [
@@ -184,6 +191,7 @@ async def getResponseFromLlama3(request: LLMRequest):
             "denoise",
             "auto_caption",
         ]:
+
             logger.info(f"Handling context-based image tool: '{tool_name}'")
             uri = _get_image_uri_from_context(request.context)
 
@@ -551,17 +559,30 @@ async def getResponseFromLlama3(request: LLMRequest):
                     text = extracted_params.get("text")
                     if not text or text == "NULL":
                         error_msg = "Could not identify the text to convert to speech."
-                        logger.error("LLM did not extract a text for text_to_speech tool.")
-                        return build_response(success=False, tool_name=tool_name, error=error_msg)
+                        logger.error(
+                            "LLM did not extract a text for text_to_speech tool."
+                        )
+                        return build_response(
+                            success=False, tool_name=tool_name, error=error_msg
+                        )
                     try:
-                        logger.info(f"Calling audio_api for text to speech with text: {text}")
+                        logger.info(
+                            f"Calling audio_api for text to speech with text: {text}"
+                        )
                         api_response = await api_text_to_speech(text)
                         # The api_response is a dict with paths, return it as the data in the response.
-                        return build_response(success=True, tool_name=tool_name, params=api_response)
+                        return build_response(
+                            success=True, tool_name=tool_name, params=api_response
+                        )
                     except Exception as e:
                         error_msg = f"Error during text to speech conversion: {str(e)}"
-                        logger.error(f"Text to speech conversion API call failed: {e}", exc_info=True)
-                        return build_response(success=False, tool_name=tool_name, error=error_msg)
+                        logger.error(
+                            f"Text to speech conversion API call failed: {e}",
+                            exc_info=True,
+                        )
+                        return build_response(
+                            success=False, tool_name=tool_name, error=error_msg
+                        )
 
                 elif tool_name in [
                     "add_text",
