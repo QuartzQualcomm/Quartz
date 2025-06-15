@@ -106,7 +106,7 @@ def add_audio_to_video(video_path: str, audio_path: str, output_path: str) -> bo
         return False
 
 @router.post("/api/video/video-stabilization", response_model=VideoStabilizationResponse)
-def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabilizationResponse:
+async def api_video_stabilization(request: VideoStabilizationRequest) -> VideoStabilizationResponse:
     """
     Stabilize a video using the VidStab library.
     
