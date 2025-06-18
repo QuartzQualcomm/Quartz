@@ -76,22 +76,27 @@ Since this project is a fork of another video editor, we plan to keep adding fea
    Arnav Rustagi
  </a>
  
+ 
  <a href = "https://github.com/thisabhinav26">
    Abhinav Lodha
  </a>
  
+ 
  <a href = "https://github.com/pjrcodes">
    Pranjal Rustagi
  </a>
+
  
  <a href = "https://github.com/and-human">
    Anshuman Sharma
  </a>
+
  
  <a href = "https://github.com/jalansubham7">
    Subham Jalan
  </a>
 
+Built on top of [nugget video editor](https://github.com/cartesiancs/nugget-app)
 ## License
 
 We are adopting the MIT license. [license file](./LICENSE)
